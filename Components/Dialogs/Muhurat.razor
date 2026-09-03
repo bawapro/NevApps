@@ -1,0 +1,65 @@
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6"
+                 Color="Color.Primary"
+                 Style="font-weight: bold;">
+            ⏱️ View Muhurat
+        </MudText>
+        <MudText Typo="Typo.caption"
+                 Color="Color.Secondary">
+            @TargetDate.ToString("dddd, dd MMMM yyyy")
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudList T="string"
+                 Clickable="false"
+                 Dense="true"
+                 Class="pa-0">
+            @foreach (var slot in MuhurtaData)
+            {
+                bool isCurrentActive = (slot.Name == CurrentMuharatName);
+
+                <MudListItem Dense="true"
+                             Class="py-1 px-2 my-1 rounded"
+                             Style="@(isCurrentActive ? "background-color: var(--mud-palette-primary-hover); border-left: 4px solid var(--mud-palette-primary);" : "")">
+                    <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                        <MudText Typo="Typo.body2"
+                                 Style="@(isCurrentActive ? "font-weight: bold;" : "")">
+                            @slot.TimeRange
+                        </MudText>
+                        <MudChip T="string"
+                                 Size="Size.Small" 
+                                 Color="@(isCurrentActive ? Color.Primary : GetMuhuratColor(slot.Name))"
+                                 Variant="@(isCurrentActive ? Variant.Filled : Variant.Outlined)">
+                            @slot.Name
+                        </MudChip>
+                    </div>
+                </MudListItem>
+            }
+        </MudList>
+    </DialogContent>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public DateTime TargetDate { get; set; }
+    [Parameter] public string CurrentMuharatName { get; set; } = string.Empty;
+
+    private List<(string TimeRange, string Name)> MuhurtaData { get; set; } = new();
+
+    protected override void OnInitialized()
+    {
+        MuhurtaData = NevApps.Classes.Muhurat.GetFullDayMuhurat(TargetDate);
+    }
+    
+    private Color GetMuhuratColor(string name)
+    {
+        return name switch
+        {
+            "Amrit" or "Shub" or "Labh" => Color.Success,
+            "Chal"                      => Color.Warning,
+            "Udveg" or "Rog" or "Kaal"  => Color.Error,
+            _                           => Color.Default
+        };
+    }
+}

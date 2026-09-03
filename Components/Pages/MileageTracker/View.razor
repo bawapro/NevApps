@@ -1,0 +1,672 @@
+﻿@page "/mileage-tracker/view"
+
+<style>
+    .mud-table-container {
+        width: 100% !important;
+    }
+
+    .mud-table-root {
+        table-layout: fixed !important;
+        width: 100% !important;
+    }
+</style>
+
+<MudContainer Class="pa-4 pb-2">
+    <MudStack Row="true"
+              AlignItems="AlignItems.Center"
+              Spacing="3">
+        <MudIcon Icon="@Icons.Material.Filled.DirectionsCar"
+                 Size="Size.Large"
+                 Color="Color.Primary"/>
+        <MudText Typo="Typo.h6"
+                 Color="Color.Primary"
+                 GutterBottom="false">
+            Mileage Tracker - View
+        </MudText>
+    </MudStack>
+    <MudText Typo="Typo.caption"
+             Style="font-style: italic; opacity: 0.85; letter-spacing: 0.3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;">
+        Review & manage your travel/fuel records
+    </MudText>
+</MudContainer>
+
+<MudDataGrid @ref="grid"
+             T="MileageTracker"
+             Items="@mileages"
+             SortMode="SortMode.None"
+             Breakpoint="Breakpoint.None"
+             ColumnResizeMode="ResizeMode.Column"
+             Dense="true"
+             Hover="true"
+             Bordered="true"
+             Striped="true"
+             HorizontalScrollbar="true"
+             Filterable="true"
+             FilterMode="DataGridFilterMode.ColumnFilterMenu"
+             FilterCaseSensitivity="DataGridFilterCaseSensitivity.CaseInsensitive"
+             QuickFilter="QuickFilterFunc"
+             Elevation="0"
+             RowsPerPage="10"
+             Style="overflow-x: auto;">
+    <ToolBarContent>
+        <MudTextField Value="searchText"
+                      ValueChanged="@(async (string v) =>
+                                    {
+                                        searchText = v;
+                                        await OnSearchTextChanged();
+                                    })"
+                      Label="Search by Place, Vehicle, Detail or Gas Station"
+                      AdornmentIcon="@Icons.Material.Filled.Search"
+                      AdornmentColor="Color.Secondary"
+                      Variant="Variant.Text"
+                      Margin="Margin.Dense"
+                      Immediate="false"
+                      Clearable="true"
+                      DebounceInterval="300"/>
+        <MudIconButton Icon="@Icons.Material.Filled.FilterList"
+                       Color="Color.Secondary"
+                       OnClick="@ToggleFilterPopover"/>
+        <MudPopover Open="@_showFilterPopover"
+                    AnchorOrigin="Origin.BottomRight"
+                    TransformOrigin="Origin.TopRight"
+                    Class="pa-4"
+                    Style="width: 300px;">
+            <MudStack Spacing="3">
+
+                <MudSelect T="string"
+                           Label="Vehicles"
+                           MultiSelection="true"
+                           SelectAll="true"
+                           SelectAllText="Select All"
+                           SelectedValues="_selectedVehicles"
+                           SelectedValuesChanged="OnVehiclesChanged"
+                           Dense="true"
+                           Margin="Margin.Dense"
+                           Clearable="true">
+                    @foreach (var vehicle in _dbVehicles)
+                    {
+                        <MudSelectItem T="string"
+                                       Value="@vehicle">@vehicle</MudSelectItem>
+                    }
+                </MudSelect>
+
+                <MudSelect T="string"
+                           Label="Start Locations"
+                           MultiSelection="true"
+                           SelectAll="true"
+                           SelectAllText="Select All"
+                           SelectedValues="_selectedStarts"
+                           SelectedValuesChanged="OnStartsChanged"
+                           Dense="true"
+                           Margin="Margin.Dense"
+                           Clearable="true">
+                    @foreach (var start in _dbStarts)
+                    {
+                        <MudSelectItem T="string"
+                                       Value="@start">@start</MudSelectItem>
+                    }
+                </MudSelect>
+
+                <MudSelect T="string"
+                           Label="End Locations"
+                           MultiSelection="true"
+                           SelectAll="true"
+                           SelectAllText="Select All"
+                           SelectedValues="_selectedEnds"
+                           SelectedValuesChanged="OnEndsChanged"
+                           Dense="true"
+                           Margin="Margin.Dense"
+                           Clearable="true">
+                    @foreach (var end in _dbEnds)
+                    {
+                        <MudSelectItem T="string"
+                                       Value="@end">@end</MudSelectItem>
+                    }
+                </MudSelect>
+
+                <MudSelect T="string"
+                           Label="Gas Stations"
+                           MultiSelection="true"
+                           SelectAll="true"
+                           SelectAllText="Select All"
+                           SelectedValues="_selectedGasStations"
+                           SelectedValuesChanged="OnGasStationsChanged"
+                           Dense="true"
+                           Margin="Margin.Dense"
+                           Clearable="true">
+                    @foreach (var station in _dbGasStations)
+                    {
+                        <MudSelectItem T="string"
+                                       Value="@station">@station</MudSelectItem>
+                    }
+                </MudSelect>
+
+                <MudDateRangePicker @bind-DateRange="_selectedDateRange"
+                                    Label="Filter by Date Window"
+                                    PickerVariant="PickerVariant.Dialog"
+                                    ShowToolbar="false"
+                                    Margin="Margin.Dense"
+                                    Clearable="true"/>
+
+                <div class="d-flex justify-between align-center mt-2">
+                    <MudButton Variant="Variant.Text"
+                               Color="Color.Error"
+                               Size="Size.Small"
+                               OnClick="ClearAllFilters"
+                               Disabled="@(ActiveFilterCount == 0 && string.IsNullOrEmpty(searchText))">
+                        Reset
+                    </MudButton>
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               Size="Size.Small"
+                               OnClick="@(() => _showFilterPopover = false)">
+                        Close
+                    </MudButton>
+                </div>
+            </MudStack>
+        </MudPopover>
+    </ToolBarContent>
+
+    <Columns>
+        <TemplateColumn Title="Trip Details"
+                        SortBy="@(x => x.Date)">
+            <CellTemplate>
+                @{
+                    bool isEV = StateService.GetVehicleIsEV(context.Item.Vehicle);
+                    string volumeUnit = isEV ? "(kWh)" : (isImperial ? "(G)" : "(L)");
+                    string economyUnit = isEV ? (isImperial ? "(mi/kWh)" : "(kWh/100km)") : (isImperial ? "(MPG)" : "(L/100km)");
+                    var energyIcon = isEV ? Icons.Material.Filled.ElectricalServices : Icons.Material.Filled.FormatColorFill;
+                    var stationIcon = isEV ? Icons.Material.Filled.EvStation : Icons.Material.Filled.LocalGasStation;
+                    var filledColor = isEV ? Color.Success : Color.Info;
+                    var stationColor = isEV ? Color.Success : Color.Warning;
+                    var boxClass = isEV ? "mud-alert-light-success" : "mud-alert-light-info";
+                }
+                <MudStack Spacing="0"
+                          Class="py-2">
+                    <MudStack Row="true"
+                              Justify="Justify.SpaceBetween">
+                        <MudText Typo="Typo.caption"
+                                 Color="Color.Primary">
+                            <b>@context.Item.Date.ToString("ddd, MMM dd, yyyy")</b>
+                        </MudText>
+
+                        <MudStack Spacing="0"
+                                  AlignItems="AlignItems.End">
+                            <MudText Typo="Typo.caption"
+                                     Style="opacity:0.7">
+                                @context.Item.Vehicle @(context.Item.FuelMileage > 0 ? $"• {context.Item.FuelMileage}" : "")
+                            </MudText>
+                            @if (!string.IsNullOrEmpty(context.Item.FuelType) && context.Item.FuelMileage > 0)
+                            {
+                                <MudText Typo="Typo.caption"
+                                         Style="opacity:0.7">
+                                    @economyUnit
+                                </MudText>
+                            }
+                        </MudStack>
+                    </MudStack>
+
+                    <MudText Typo="Typo.body2"
+                             Class="mt-1">
+                        <MudIcon Icon="@Icons.Material.Filled.Place"
+                                 Size="Size.Small"
+                                 Class="mr-1"
+                                 Style="vertical-align: bottom;"/>
+                        <b>@context.Item.Start</b>
+                        <MudIcon Icon="@Icons.Material.Filled.ArrowForward"
+                                 Size="Size.Small"/>
+                        <b>
+                            @(context.Item.End.Contains("*")
+                                ? context.Item.End.Substring(0, context.Item.End.IndexOf("*"))
+                                : context.Item.End)
+                        </b>
+                    </MudText>
+
+                    <MudStack Row="true"
+                              Spacing="4"
+                              Class="mt-1"
+                              AlignItems="AlignItems.Center">
+                        <MudText Typo="Typo.caption"
+                                 Style="opacity:0.8">
+                            Odo: @(isImperial ? (int)Math.Round(Constants.Conversions.KmToMiles * context.Item.OdoStart) : context.Item.OdoStart)
+                            - @(isImperial ? (int)Math.Round(Constants.Conversions.KmToMiles * context.Item.OdoEnd) : context.Item.OdoEnd)
+                        </MudText>
+                        <MudChip T="string"
+                                 Size="Size.Small"
+                                 Variant="Variant.Text"
+                                 Color="Color.Default"
+                                 Class="ma-0 px-2"
+                                 Style="background-color: rgba(0,0,0,0.05)">
+                            @(isImperial ? (int)Math.Round(Constants.Conversions.KmToMiles * context.Item.Distance) : context.Item.Distance) @(isImperial ? "mi" : "km")
+                        </MudChip>
+                    </MudStack>
+
+                    @if (context.Item.FuelFilled > 0)
+                    {
+                        <MudStack Row="true"
+                                  Justify="Justify.SpaceBetween"
+                                  AlignItems="AlignItems.Center"
+                                  Class="@($"mt-2 pa-2 {boxClass}")"
+                                  Style="border-radius: 4px;">
+                            <MudStack Spacing="0"
+                                      AlignItems="AlignItems.Center">
+                                <MudStack Spacing="0"
+                                          Row
+                                          AlignItems="AlignItems.Center">
+                                    <MudIcon Icon="@energyIcon"
+                                             Size="Size.Small"
+                                             Color="@filledColor"/>
+                                    <MudText Typo="Typo.subtitle2"
+                                             Color="@filledColor"><b>@context.Item.FuelFilled</b></MudText>
+                                </MudStack>
+                                <MudStack>
+                                    <MudText Typo="Typo.caption">@volumeUnit</MudText>
+                                </MudStack>
+                            </MudStack>
+
+                            <MudStack Spacing="0"
+                                      AlignItems="AlignItems.Center">
+                                <MudText Typo="Typo.subtitle2"><b>@context.Item.FuelRate</b></MudText>
+                                <MudText Typo="Typo.caption"
+                                         Style="font-size: 0.7rem;">Rate
+                                </MudText>
+                            </MudStack>
+
+                            <MudStack Spacing="0"
+                                      AlignItems="AlignItems.End">
+                                <MudText Typo="Typo.subtitle2">
+                                    <b>@((Convert.ToDecimal(context.Item.FuelPrice)).ToString("C", new System.Globalization.CultureInfo(string.IsNullOrEmpty(culture) ? "en-US" : culture)))</b>
+                                </MudText>
+                                <MudText Typo="Typo.caption"
+                                         Style="font-size: 0.7rem;">Total Cost
+                                </MudText>
+                            </MudStack>
+                        </MudStack>
+                    }
+
+                    <MudStack Row="true"
+                              Justify="Justify.SpaceBetween"
+                              AlignItems="AlignItems.Center"
+                              Class="mt-1">
+                        <MudStack Row="true"
+                                  Spacing="1"
+                                  AlignItems="AlignItems.Center">
+                            @if (context.Item.FuelFilled > 0)
+                            {
+                                <MudIcon Icon="@stationIcon"
+                                         Color="stationColor"
+                                         Size="Size.Small"
+                                         Style="opacity:0.6"/>
+                                <MudText Typo="Typo.caption"
+                                         Style="font-style: italic;">@context.Item.GasStation</MudText>
+                                <MudText Typo="Typo.caption"> @($"({context.Item.FuelType})")</MudText>
+                            }
+                            else
+                            {
+                                <MudText Typo="Typo.caption"
+                                         Style="font-style: italic;">@context.Item.Detail</MudText>
+                            }
+                        </MudStack>
+                        <div class="d-flex align-center">
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                           Size="Size.Small"
+                                           Color="Color.Primary"
+                                           OnClick="@(() => OpenEditDialogAsync(context.Item))"/>
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                           Size="Size.Small"
+                                           Color="Color.Error"
+                                           OnClick="@(() => Delete(context.Item))"/>
+                        </div>
+                    </MudStack>
+                </MudStack>
+            </CellTemplate>
+        </TemplateColumn>
+    </Columns>
+
+    <PagerContent>
+        <MudStack Row
+                  Justify="Justify.Center"
+                  AlignItems="AlignItems.Center"
+                  Spacing="3"
+                  Class="pa-4 my-2">
+            <!-- First Page -->
+            <MudIconButton OnClick="@(async () =>
+                                    {
+                                        if (grid != null)
+                                        {
+                                            grid.NavigateTo(Page.First);
+                                            await InvokeAsync(StateHasChanged);
+                                        }
+                                    })"
+                           Icon="@Icons.Material.Filled.FirstPage"
+                           Color="Color.Tertiary"
+                           Variant="Variant.Filled"
+                           Size="Size.Small"
+                           Disabled="@(grid?.CurrentPage <= 0)"/>
+
+            <!-- Previous -->
+            <MudIconButton OnClick="@(async () =>
+                                    {
+                                        if (grid != null)
+                                        {
+                                            grid.NavigateTo(Page.Previous);
+                                            await InvokeAsync(StateHasChanged);
+                                        }
+                                    })"
+                           Icon="@Icons.Material.Filled.ChevronLeft"
+                           Color="Color.Tertiary"
+                           Variant="Variant.Filled"
+                           Size="Size.Small"
+                           Disabled="@(grid?.CurrentPage <= 0)"/>
+
+            <!-- Rows per page selector -->
+            <MudSelect T="int"
+                       Value="@(grid?.RowsPerPage ?? 10)"
+                       ValueChanged="OnPageSizeChanged"
+                       Label="Show records"
+                       ShrinkLabel="true"
+                       Variant="Variant.Text"
+                       Dense="true"
+                       Margin="Margin.Dense"
+                       Style="width: 70px; margin-right: 16px; margin-left: 8px;">
+                <MudSelectItem Value="10">10</MudSelectItem>
+                <MudSelectItem Value="25">25</MudSelectItem>
+                <MudSelectItem Value="50">50</MudSelectItem>
+                <MudSelectItem Value="100">100</MudSelectItem>
+            </MudSelect>
+
+            <!-- Next -->
+            <MudIconButton OnClick="@(async () =>
+                                    {
+                                        if (grid != null)
+                                        {
+                                            grid.NavigateTo(Page.Next);
+                                            await InvokeAsync(StateHasChanged);
+                                        }
+                                    })"
+                           Icon="@Icons.Material.Filled.ChevronRight"
+                           Color="Color.Tertiary"
+                           Variant="Variant.Filled"
+                           Size="Size.Small"
+                           Disabled="@(grid == null || mileages == null || (grid.CurrentPage + 1) * grid.RowsPerPage >= grid.FilteredItems.Count())"/>
+
+            <!-- Last Page -->
+            <MudIconButton OnClick="@(async () =>
+                                    {
+                                        if (grid != null)
+                                        {
+                                            grid.NavigateTo(Page.Last);
+                                            await InvokeAsync(StateHasChanged);
+                                        }
+                                    })"
+                           Icon="@Icons.Material.Filled.LastPage"
+                           Color="Color.Tertiary"
+                           Variant="Variant.Filled"
+                           Size="Size.Small"
+                           Disabled="@(grid == null || mileages == null || (grid.CurrentPage + 1) * grid.RowsPerPage >= grid.FilteredItems.Count())"/>
+        </MudStack>
+    </PagerContent>
+
+    <NoRecordsContent>
+        <MudContainer>
+            <MudText Align="Align.Left">No entries yet!</MudText>
+        </MudContainer>
+    </NoRecordsContent>
+</MudDataGrid>
+
+@if (!string.IsNullOrEmpty(errorMsg))
+{
+    <MudAlert Severity="Severity.Success"
+              Class="mt-4">@errorMsg</MudAlert>
+}
+
+@code {
+
+    private bool isImperial = false;
+    private string errorMsg = "", searchText = "", culture = "";
+    private IEnumerable<MileageTracker>? mileages;
+    private MudDataGrid<MileageTracker>? grid;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadMileages();
+            var Settings = await SettingsService.GetSettingsAsync();
+            string country = Settings.Where(x => x.SettingKey == "country").FirstOrDefault()?.SettingValue!;
+            culture = SettingsService.GetCultureCode(country);
+            isImperial = Settings.Any(x => x.SettingKey == "country" && x.SettingValue.ToLower() == "united states");
+            _dbVehicles = await MileageTrackerService.GetAllVehiclesAsync();
+        }
+        catch (Exception ex)
+        {
+            LoggerService.Log($"OnInitializedAsync - {this.GetType().FullName}", ex);
+            Snackbar.Add(Constants.OnLoadErrorMessage, Severity.Error);
+        }
+    }
+
+    private async Task LoadMileages()
+    {
+        try
+        {
+            mileages = await MileageTrackerService.GetAllMileagesAsync();
+        }
+        catch (Exception ex)
+        {
+            await DialogService.ShowMessageBoxAsync("Error", ex.Message, "OK");
+        }
+    }
+
+    private async Task OnSearchTextChanged()
+    {
+        if (grid == null) return;
+        await grid.ClearFiltersAsync();
+        await Task.Delay(50);
+        await grid.RemoveSortAsync("Date");
+        await grid.SetSortAsync("Date", SortDirection.Descending, x => x.Date);
+        await grid.SetSortAsync("Id", SortDirection.Descending, x => x.Id);
+    }
+
+    private async Task OnPageSizeChanged(int newSize)
+    {
+        if (grid != null)
+        {
+            await grid.SetRowsPerPageAsync(newSize);
+            grid.NavigateTo(Page.First);
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task OpenEditDialogAsync(MileageTracker mileage)
+    {
+        var parameters = new DialogParameters<Edit> { { x => x.MileageData, mileage }, { x => x.OnSaved, RefreshGrid }, { x => x.isImperial, isImperial } };
+
+        var options = new DialogOptions()
+        {
+            CloseButton = true,
+            MaxWidth = MaxWidth.Medium,
+            FullWidth = true,
+            BackdropClick = false
+        };
+
+        await DialogService.ShowAsync<Edit>("Edit Mileage", parameters, options);
+    }
+
+    private async Task RefreshGrid()
+    {
+        await LoadMileages();
+        StateHasChanged();
+    }
+
+    private async Task Delete(MileageTracker obj)
+    {
+        bool? result = await DialogService.ShowMessageBoxAsync("Confirm Delete", "Are you sure you want to delete this entry? This action cannot be undone.", yesText: "Yes", cancelText: "Cancel");
+
+        if (result == true)
+        {
+            try
+            {
+                int n = await MileageTrackerService.DeleteMileageAsync(obj.Id);
+
+                if (n > 0)
+                    Snackbar.Add("Entry deleted successfully!", Severity.Success);
+
+                await LoadMileages();
+
+                StateHasChanged();
+            }
+            catch (Exception ex)
+            {
+                await DialogService.ShowMessageBoxAsync("Error", ex.Message, "OK");
+            }
+        }
+    }
+
+    private bool _showFilterPopover = false;
+
+    private List<string> _dbVehicles = new();
+    private List<string> _dbStarts = new();
+    private List<string> _dbEnds = new();
+    private List<string> _dbGasStations = new();
+
+    private IReadOnlyCollection<string> _selectedVehicles = new HashSet<string>();
+    private IReadOnlyCollection<string> _selectedStarts = new HashSet<string>();
+    private IReadOnlyCollection<string> _selectedEnds = new HashSet<string>();
+    private IReadOnlyCollection<string> _selectedGasStations = new HashSet<string>();
+    private DateRange _selectedDateRange = new DateRange(null, null);
+
+    private int ActiveFilterCount =>
+        (_selectedVehicles != null && _selectedVehicles.Any() ? 1 : 0) +
+        (_selectedStarts != null && _selectedStarts.Any() ? 1 : 0) +
+        (_selectedEnds != null && _selectedEnds.Any() ? 1 : 0) +
+        (_selectedGasStations != null && _selectedGasStations.Any() ? 1 : 0) +
+        (_selectedDateRange?.Start != null ? 1 : 0);
+
+    private void ToggleFilterPopover() => _showFilterPopover = !_showFilterPopover;
+
+    private async Task OnVehiclesChanged(IReadOnlyCollection<string> values)
+    {
+        _selectedVehicles = values ?? new HashSet<string>();
+        _dbStarts = await MileageTrackerService.GetStartLocationsAsync(_selectedVehicles);
+        _selectedStarts = _selectedStarts.Where(s => _dbStarts.Contains(s)).ToHashSet();
+        _dbEnds = await MileageTrackerService.GetEndLocationsAsync(_selectedVehicles, _selectedStarts);
+        _selectedEnds = _selectedEnds.Where(e => _dbEnds.Contains(e)).ToHashSet();
+        _dbGasStations = await MileageTrackerService.GetGasStationsAsync(_selectedVehicles);
+        _selectedGasStations = _selectedGasStations.Where(g => _dbGasStations.Contains(g)).ToHashSet();
+
+        if (grid != null) await grid.ReloadServerData();
+    }
+
+    private async Task OnStartsChanged(IReadOnlyCollection<string> values)
+    {
+        _selectedStarts = values ?? new HashSet<string>();
+        _dbEnds = await MileageTrackerService.GetEndLocationsAsync(_selectedVehicles, _selectedStarts);
+        _selectedEnds = _selectedEnds.Where(e => _dbEnds.Contains(e)).ToHashSet();
+        _dbGasStations = await MileageTrackerService.GetGasStationsAsync(_selectedEnds);
+        _selectedGasStations = _selectedGasStations.Where(g => _dbGasStations.Contains(g)).ToHashSet();
+
+        if (grid != null) await grid.ReloadServerData();
+    }
+
+    private async Task OnEndsChanged(IReadOnlyCollection<string> values)
+    {
+        _selectedEnds = values ?? new HashSet<string>();
+        _dbGasStations = await MileageTrackerService.GetGasStationsAsync(_selectedEnds);
+        _selectedGasStations = _selectedGasStations.Where(g => _dbGasStations.Contains(g)).ToHashSet();
+
+        if (grid != null) await grid.ReloadServerData();
+    }
+
+    private async Task OnGasStationsChanged(IReadOnlyCollection<string> values)
+    {
+        _selectedGasStations = values ?? new HashSet<string>();
+
+        if (grid != null) await grid.ReloadServerData();
+    }
+    
+    private async Task ClearAllFilters()
+    {
+        _selectedVehicles = new HashSet<string>();
+        _selectedStarts = new HashSet<string>();
+        _selectedEnds = new HashSet<string>();
+        _selectedGasStations = new HashSet<string>();
+        _selectedDateRange = new DateRange(null, null);
+        searchText = "";
+        _showFilterPopover = false;
+        _dbStarts = new List<string>();
+        _dbEnds = new List<string>();
+        _dbGasStations = new List<string>();
+
+        if (grid != null) await grid.ReloadServerData();
+    }
+
+    private bool QuickFilterFunc(MileageTracker e)
+    {
+        if (!string.IsNullOrWhiteSpace(searchText))
+        {
+            var term = searchText.Trim().ToLowerInvariant();
+            bool matchesText = (e.End?.ToLowerInvariant().Contains(term) ?? false) ||
+                               (e.Detail?.ToLowerInvariant().Contains(term) ?? false) ||
+                               (e.Vehicle?.ToLowerInvariant().Contains(term) ?? false) ||
+                               (e.GasStation?.ToLowerInvariant().Contains(term) ?? false);
+
+            if (!matchesText) return false;
+        }
+
+        if (_selectedVehicles != null && _selectedVehicles.Any() && !_selectedVehicles.Contains(e.Vehicle))
+            return false;
+
+        if (_selectedStarts != null && _selectedStarts.Any() && !_selectedStarts.Contains(e.Start))
+            return false;
+
+        if (_selectedEnds != null && _selectedEnds.Any() && !_selectedEnds.Contains(e.End.Substring(0, e.End.IndexOf("*")).Trim()))
+            return false;
+
+        if (_selectedGasStations != null && _selectedGasStations.Any() && !_selectedGasStations.Contains(e.GasStation))
+            return false;
+
+        if (_selectedDateRange?.Start != null && _selectedDateRange?.End != null)
+        {
+            var startDate = DateOnly.FromDateTime(_selectedDateRange.Start.Value);
+            var endDate = DateOnly.FromDateTime(_selectedDateRange.End.Value);
+
+            if (e.Date < startDate || e.Date > endDate)
+                return false;
+        }
+
+        return true;
+    }
+
+
+    /*Not Used 
+    private async Task DeleteAll()
+    {
+        var parameters = new DialogParameters<Dialogs.Delete>
+        {
+            { x => x.Title, "DELETE ALL ENTRIES" },
+            { x => x.Message, "This will permanently delete EVERY entry in your tracker. There is no recovery." },
+            { x => x.ConfirmButtonText, "Delete Everything" },
+            { x => x.RequireTyping, true },
+            { x => x.ConfirmWord, "DELETE ALL" }
+        };
+
+        try
+        {
+
+            var dialog = await DialogService.ShowAsync<Dialogs.Delete>("", parameters);
+            var result = await dialog.Result;
+
+            if (result != null && !result.Canceled)
+            {
+                await MileageTrackerService.DeleteAllMileagesAsync();
+                await LoadMileage();
+                Snackbar.Add("All entries deleted permanently.", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            await DialogService.ShowMessageBoxAsync("Error", ex.Message, "OK");
+        }
+    }
+    */
+}

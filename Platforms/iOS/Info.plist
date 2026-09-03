@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+	<dict>
+		<key>LSRequiresIPhoneOS</key>
+		<true/>
+		<key>UIDeviceFamily</key>
+		<array>
+			<integer>1</integer>
+			<integer>2</integer>
+		</array>
+		<key>UIRequiredDeviceCapabilities</key>
+		<array>
+			<string>arm64</string>
+		</array>
+		<key>UISupportedInterfaceOrientations</key>
+		<array>
+			<string>UIInterfaceOrientationPortrait</string>
+			<string>UIInterfaceOrientationLandscapeLeft</string>
+			<string>UIInterfaceOrientationLandscapeRight</string>
+		</array>
+		<key>UISupportedInterfaceOrientations~ipad</key>
+		<array>
+			<string>UIInterfaceOrientationPortrait</string>
+			<string>UIInterfaceOrientationPortraitUpsideDown</string>
+			<string>UIInterfaceOrientationLandscapeLeft</string>
+			<string>UIInterfaceOrientationLandscapeRight</string>
+		</array>
+
+		<key>XSAppIconAssets</key>
+		<string>Assets.xcassets/appicon.appiconset</string>
+		<key>CFBundleIdentifier</key>
+		<string>com.companyname.nevapps</string>
+		<key>CFBundleDisplayName</key>
+		<string>NevApps</string>
+		<key>CFBundleShortVersionString</key>
+		<string>2.5.0</string>
+		<key>CFBundleVersion</key>
+		<string>25</string>
+		<key>ITSAppUsesNonExemptEncryption</key>
+		<false/>
+
+		<key>UIBackgroundModes</key>
+		<array>
+			<string>location</string>
+		</array>
+
+		<key>NSLocationWhenInUseUsageDescription</key>
+		<string>NevApps needs your location for calculating accurate sunrise/sunset times, tracking session distance, and detecting when you are resting.</string>
+		<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+		<string>NevApps needs your location for calculating sunrise/sunset times and maintaining accurate session tracking when the screen is locked.</string>
+		<key>NSLocationAlwaysUsageDescription</key>
+		<string>NevApps needs your location for calculating sunrise/sunset times and maintaining accurate session tracking when the screen is locked.</string>
+
+		<key>NSMotionUsageDescription</key>
+		<string>NevApps requires access to your step counter sensor to log your steps during active tracking sessions.</string>
+
+		<key>NSCameraUsageDescription</key>
+		<string>NevApps requires camera access to scan your receipts.</string>
+		<key>NSPhotoLibraryUsageDescription</key>
+		<string>NevApps needs access to your photo library to select and scan receipt images.</string>
+		<key>NSPhotoLibraryAddUsageDescription</key>
+		<string>NevApps needs permission to temporarily save captured receipt photos.</string>
+
+		<key>NSCalendarsUsageDescription</key>
+		<string>NevApps uses the calendar to help you track your mileage and expenses by date.</string>
+
+		<key>NSBluetoothAlwaysUsageDescription</key>
+		<string>This app does not use Bluetooth, but the underlying framework requires this declaration.</string>
+		<key>NSContactsUsageDescription</key>
+		<string>This app does not access your contacts, but the underlying framework requires this declaration.</string>
+		<key>NSAppleMusicUsageDescription</key>
+		<string>This app does not access your music library, but the underlying framework requires this declaration.</string>
+		<key>NSSiriUsageDescription</key>
+		<string>This app does not use Siri, but the underlying framework requires this declaration.</string>
+		<key>NSMicrophoneUsageDescription</key>
+		<string>This app does not use the microphone, but the underlying framework requires this declaration.</string>
+	</dict>
+</plist>

@@ -1,0 +1,226 @@
+﻿@page "/"
+@using NevApps.Components.Pages.Dashboard
+
+@if (firstLaunch)
+{
+    <MudAlert Severity="Severity.Info"
+              Variant="Variant.Outlined"
+              Icon="@Icons.Material.Filled.RocketLaunch"
+              Class="mb-4">
+        <strong>Welcome to NevApps</strong>
+        <br/>
+        Please
+        <MudLink Href="/view-settings"
+                 Underline="Underline.Always"><b>set up your profile</b></MudLink>
+        (Apps, Country, Vehicles, & Categories) to get started.
+    </MudAlert>
+}
+else
+{
+    if (showDashboard)
+    {
+        <MudContainer Class="pa-4 pb-2">
+            <MudStack Row="true"
+                      AlignItems="AlignItems.Center"
+                      Spacing="3">
+                <MudIcon Icon="@Icons.Material.Filled.Dashboard"
+                         Size="Size.Large"
+                         Color="Color.Primary"/>
+
+                <MudText Typo="Typo.h5"
+                         Color="Color.Primary"
+                         GutterBottom="false">
+                    Dashboard
+                </MudText>
+            </MudStack>
+        </MudContainer>
+    }
+
+    @if (isEmpty)
+    {
+        <MudAlert Severity="Severity.Info"
+                  Variant="Variant.Outlined"
+                  Class="mt-4">
+            Start adding expenses, mileage, and auto payment details to see your summary here.
+        </MudAlert>
+    }
+
+    @if (!isEmpty)
+    {
+        <MudToggleGroup T="int"
+                        @bind-Value="activeTab"
+                        Outlined="true"
+                        Delimiters="true"
+                        Class="mx-4 mt-2"
+                        Size="Size.Small">
+
+            @if (isExpense)
+            {
+                <MudToggleItem Value="1">
+                    @if (UseDashboardIcons)
+                    {
+                        <MudIcon Icon="@Icons.Material.Filled.ReceiptLong"
+                                 Title="Expenses"/>
+                    }
+                    else
+                    {
+                        <span>Expenses</span>
+                    }
+                </MudToggleItem>
+            }
+
+            @if (isAutoPay)
+            {
+                <MudToggleItem Value="2">
+                    @if (UseDashboardIcons)
+                    {
+                        <MudIcon Icon="@Icons.Material.Filled.Autorenew"
+                                 Title="Auto Pay"/>
+                    }
+                    else
+                    {
+                        <span>Auto Pay</span>
+                    }
+                </MudToggleItem>
+            }
+
+            @if (isMileage)
+            {
+                <MudToggleItem Value="3">
+                    @if (UseDashboardIcons)
+                    {
+                        <MudIcon Icon="@Icons.Material.Filled.DirectionsCar"
+                                 Title="Mileage"/>
+                    }
+                    else
+                    {
+                        <span>Mileage</span>
+                    }
+                </MudToggleItem>
+            }
+
+            @if (isShenshai)
+            {
+                <MudToggleItem Value="4">
+                    @if (UseDashboardIcons)
+                    {
+                        <MudIcon Icon="@Icons.Material.Filled.Event"
+                                 Title="Reminders"/>
+                    }
+                    else
+                    {
+                        <span>Reminders</span>
+                    }
+                </MudToggleItem>
+            }
+        </MudToggleGroup>
+
+        <div class="pa-4">
+            @if (activeTab == 1 && isExpense)
+            {
+                <ExpenseSummary/>
+            }
+            else if (activeTab == 2 && isAutoPay)
+            {
+                <AutoPay/>
+            }
+            else if (activeTab == 3 && isMileage)
+            {
+                <MileageSummary/>
+            }
+            else if (activeTab == 4 && isShenshai)
+            {
+                <Reminders/>
+            }
+        </div>
+    }
+}
+
+@code {
+    private int activeTab = 1;
+
+    private bool firstLaunch = false,
+        isExpense = false,
+        isAutoPay = false,
+        isMileage = false,
+        isShenshai = false,
+        isEmpty = false,
+        showDashboard = false;
+
+    private bool UseDashboardIcons =>
+        (isExpense ? 1 : 0) + (isAutoPay ? 1 : 0) + (isMileage ? 1 : 0) + (isShenshai ? 1 : 0) >= 4;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var Settings = await SettingsService.GetSettingsAsync();
+            firstLaunch = Settings.Count <= 1;
+            if (firstLaunch)
+                return;
+
+            var autoPayments = await ExpenseTrackerService.GetAutoPayments(true);
+            if (autoPayments != null && autoPayments.Count() > 0)
+                await UpdateAutoPay(autoPayments);
+
+            showDashboard = await SettingsService.CheckDashboardAsync();
+            (isExpense, isAutoPay, isMileage, isShenshai) = await SettingsService.CheckDashboardCountsAsync();
+
+            if (isExpense)
+                activeTab = 1;
+            else if (isAutoPay)
+                activeTab = 2;
+            else if (isMileage)
+                activeTab = 3;
+            else if (isShenshai)
+                activeTab = 4;
+            else
+                activeTab = 0; // nothing enabled
+
+            if (isExpense == false && isMileage == false && isAutoPay == false && isShenshai == false)
+                isEmpty = true;
+        }
+        catch (Exception ex)
+        {
+            LoggerService.Log($"OnInitializedAsync - {this.GetType().FullName}", ex);
+            Snackbar.Add(Constants.OnLoadErrorMessage, Severity.Error);
+        }
+    }
+
+    private async Task UpdateAutoPay(List<NevDBClass.Models.ExpenseTracker> autoPayments)
+    {
+        var today = DateOnly.FromDateTime(DateTime.Now);
+        foreach (var payment in autoPayments!)
+        {
+            if (payment.AutoPayDate.HasValue && payment.AutoPayDate.Value <= today && !string.IsNullOrEmpty(payment.Frequency))
+            {
+                try
+                {
+                    int id = payment.Id;
+                    DateOnly oldDate = payment.Date;
+                    
+                    //Insert new entry
+                    payment.Id = 0;
+                    payment.Date = payment.AutoPayDate.Value;
+                    payment.AutoPayDate = ExpenseTrackerService.GetNextDate(payment.AutoPayDate.Value, payment.Frequency);
+                    int n = await ExpenseTrackerService.UpdateAutoPaymentsAsync(payment);
+
+                    //Update previous entry
+                    payment.Id = id;
+                    payment.Date = oldDate;
+                    payment.AutoPayDate = null;
+                    payment.AutoPay = null;
+                    payment.Frequency = null;
+                    n = await ExpenseTrackerService.UpdateAutoPaymentsAsync(payment);
+
+                    if (n > 0)
+                        Snackbar.Add($"Auto payment for {payment.Detail} updated.", Severity.Info);
+                }
+                catch (Exception ex)
+                {
+                    Snackbar.Add(ex.ToString(), Severity.Error);
+                }
+            }
+        }
+    }
+}

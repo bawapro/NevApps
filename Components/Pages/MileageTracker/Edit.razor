@@ -1,0 +1,264 @@
+﻿@page "/mileage-tracker/edit/{Id:int}"
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.subtitle1" Color="Color.Tertiary">Edit </MudText>
+        <MudText Typo="Typo.subtitle2" Color="Color.Surface">Travel/Fuel Details</MudText>
+    </TitleContent>
+
+    <DialogContent>
+        <MudForm @ref="form" @bind-IsValid="@isValid">
+            <MudGrid>
+                <MudItem xs="12" sm="12" md="2">
+                    <MudSelect @bind-Value="vehicle" SelectedValuesChanged="OnVehicleChanged" T="string" Label="Select Vehicle" IconSize="Size.Small" AdornmentIcon="@Icons.Material.Filled.CarRental">
+                        @foreach (string str in vehicles!)
+                        {
+                            <MudSelectItem Value="@str">@str</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+
+                <MudItem xs="12" sm="12" md="2">
+                    <MudTextField T="DateTime?" Format="yyyy-MM-dd" Label="Date" InputType="InputType.Date" Value="date" ValueChanged="OnDateChanged" />
+                </MudItem>
+
+                <MudItem xs="12" sm="12" md="4">
+                    <MudAutocomplete @bind-Value="startLocation" T="string" Label="Start Location" SearchFunc="GetStartLocations" MaxLength="50"
+                                     IconSize="Size.Small" AdornmentIcon="@Icons.Material.Filled.AddLocation" Variant="Variant.Text" Margin="Margin.Dense"
+                                     Dense="true" Clearable="true" Required="true" CoerceText="true" CoerceValue="true" />
+                </MudItem>
+
+                <MudItem xs="12" sm="12" md="4">
+                    <MudAutocomplete @bind-Value="endLocation" T="string" Label="End Location" SearchFunc="GetEndLocations" MaxLength="100"
+                                     IconSize="Size.Small" AdornmentIcon="@Icons.Material.Filled.EditLocation" Variant="Variant.Text" Margin="Margin.Dense"
+                                     Dense="true" Clearable="true" Required="true" CoerceText="false" CoerceValue="true" />
+                </MudItem>
+
+                <MudItem xs="6" sm="6" md="2">
+                    <MudNumericField @bind-Value="odoStart" T="int" Label="Start Odometer" IconSize="Size.Small" Required="true" HideSpinButtons="true"
+                                     InputMode="InputMode.tel" Min="0" Max="999999" Adornment="Adornment.Start" AdornmentColor="Color.Default" />
+                </MudItem>
+
+                <MudItem xs="6" sm="6" md="2">
+                    <MudNumericField @bind-Value="odoEnd" T="int" Label="End Odometer" IconSize="Size.Small" Required="true" HideSpinButtons="true" InputMode="InputMode.tel" 
+                                     Min="0" Max="999999" Adornment="Adornment.Start" AdornmentColor="Color.Default" />
+                </MudItem>
+
+                <MudItem xs="6" sm="6" md="2">
+                    <MudNumericField Value="distance" T="int" Label="Distance" IconSize="Size.Small" Disabled="true" HideSpinButtons="true"
+                                     InputMode="InputMode.numeric" Min="0" Max="999999" Adornment="Adornment.Start" AdornmentColor="Color.Default" />
+                </MudItem>
+
+                <MudItem xs="6" sm="6" md="2">
+                    <MudNumericField Value="mileage" T="int" Label="Mileage" IconSize="Size.Small" HideSpinButtons="true" Disabled="true"
+                                     InputMode="InputMode.numeric" Min="0" Max="999999" Adornment="Adornment.Start" AdornmentColor="Color.Default" />
+                </MudItem>
+                
+                <MudItem xs="12" sm="12" md="4">
+                    <MudAutocomplete @bind-Value="detail" T="string" Label="Purpose" SearchFunc="GetDetails" MaxLength="200"
+                                     IconSize="Size.Small" AdornmentIcon="@Icons.Material.Filled.Description" Variant="Variant.Text" Margin="Margin.Dense"
+                                     Dense="true" Clearable="true" CoerceText="false" CoerceValue="true" />
+                </MudItem>
+
+                <MudItem xs="12" sm="12" md="3">
+                    <MudAutocomplete @bind-Value="gasStation" T="string" Label="@(isEV ? "EV Station" : "Gas Station")" SearchFunc="GetGasStations" MaxLength="50"
+                                     IconSize="Size.Small" AdornmentIcon="@(isEV ? Icons.Material.Filled.EvStation:Icons.Material.Filled.LocalGasStation)" Variant="Variant.Text" Margin="Margin.Dense"
+                                     Dense="true" Clearable="true" CoerceText="false" CoerceValue="true" />
+                </MudItem>
+               
+                <MudItem xs="5" sm="5" md="3">
+                    <MudAutocomplete @bind-Value="fuelType" T="string" Label="@(isEV ? "Charge Type" : "Fuel Type")" SearchFunc="GetFuelTypes" Variant="Variant.Text" Margin="Margin.Dense"
+                                     IconSize="Size.Small" AdornmentIcon="@(isEV ? Icons.Material.Filled.ElectricCar: Icons.Material.Filled.OilBarrel)" ShrinkLabel="true"
+                                     Dense="true" CoerceText="false" CoerceValue="true" />
+                </MudItem>
+                
+                <MudItem xs="7" sm="7" md="2">
+                    <MudNumericField @bind-Value="fuelPrice" T="decimal?" Label="@(isEV ? "Charge Cost" : "Price")" IconSize="Size.Small"
+                                     InputMode="@(InputMode.@decimal)" Placeholder="0.00" Format="N2" Culture="@CultureInfo.InvariantCulture" Margin="Margin.Dense"
+                                     Adornment="Adornment.Start" AdornmentColor="Color.Default" AdornmentIcon="@currencyIcon" HideSpinButtons="true" />
+                </MudItem>
+                
+                <MudItem xs="6" sm="6" md="2">
+                    <MudNumericField @bind-Value="fuelRate" T="decimal?" Label="@(isEV ? "Energy Rate" : "Fuel Rate")" InputMode="@(InputMode.@decimal)" Format="N3" ShrinkLabel="true" Margin="Margin.Dense" />
+                </MudItem>
+                
+                <MudItem xs="6" sm="6" md="2">
+                    <MudNumericField @bind-Value="fuelFilled" T="decimal?" Label="@(isEV ? "Energy Added" : "Fuel Filled")" InputMode="@(InputMode.@decimal)" Format="N2" ShrinkLabel="true" Margin="Margin.Dense" />
+                </MudItem>
+            </MudGrid>
+        </MudForm>
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SubmitAsync">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public MileageTracker MileageData { get; set; } = new();
+    [Parameter] public Func<Task> OnSaved { get; set; } = () => Task.CompletedTask;
+    [Parameter] public bool isImperial { get; set; }
+
+    private bool isValid = true, isEV = false;
+    private DateTime? date;
+    private int odoStart, odoEnd, _distance, mileage;
+    
+    public int distance
+    {
+        get
+        {
+            if (odoEnd > 0 && odoStart >= 0)
+                return odoEnd - odoStart;
+            else
+                return _distance;
+
+        }
+        set
+        {
+            _distance = value;
+        }
+    }
+
+    private decimal? fuelFilled, fuelRate, _fuelPrice;
+    private decimal? fuelPrice
+    {
+        get
+        {
+            return fuelFilled * fuelRate;
+        }
+        set
+        {
+            _fuelPrice = value;
+        }
+    }
+    private string? vehicle, startLocation, endLocation, detail, gasStation, fuelType, currencyIcon;
+    public List<string>? vehicles { get; set; }
+    private MudForm form = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var Settings = await SettingsService.GetSettingsAsync();
+        currencyIcon = await SettingsService.GetCurrencyIcon();
+        vehicles = Settings.Where(x => x.SettingKey == "vehicle").Select(s => s.SettingValue).ToList();
+        date = MileageData.Date.ToDateTime(TimeOnly.MinValue);
+        vehicle = MileageData.Vehicle;
+        isEV = StateService.GetVehicleIsEV(vehicle ?? "");
+        startLocation = MileageData.Start;
+        endLocation = MileageData.End;
+        odoStart = isImperial ? (int)Math.Round(Constants.Conversions.KmToMiles * MileageData.OdoStart) : MileageData.OdoStart;
+        odoEnd = isImperial ? (int)Math.Round(Constants.Conversions.KmToMiles * MileageData.OdoEnd) : MileageData.OdoEnd;
+        distance = isImperial ? (int)Math.Round(Constants.Conversions.KmToMiles * MileageData.Distance) : MileageData.Distance;
+        mileage = isImperial ? (int)Math.Round(Constants.Conversions.KmToMiles * MileageData.Mileage) : MileageData.Mileage;
+        detail = MileageData.Detail ?? string.Empty;
+        gasStation = MileageData.GasStation ?? string.Empty;
+        fuelType = MileageData.FuelType ?? string.Empty;
+        fuelPrice = MileageData.FuelPrice;
+        fuelRate = MileageData.FuelRate;
+        fuelFilled = isImperial ? Constants.Conversions.LitresToUsGallons * MileageData.FuelFilled : MileageData.FuelFilled;
+    }
+
+    private async Task<IEnumerable<string?>> GetFuelTypes(string value, CancellationToken token)
+    {
+        return await MileageTrackerService.GetFuelTypesAsync();
+    }
+
+    private async Task<IEnumerable<string?>> GetGasStations(string value, CancellationToken token)
+    {
+        return await MileageTrackerService.GetGasStationsAsync(value);
+    }
+    
+    private void OnDateChanged(DateTime? value)
+    {
+        date = value == null ? DateTime.Now : value;
+    }
+    
+    private async Task OnVehicleChanged(IReadOnlyCollection<string> values)
+    {
+        (var latestRecord, var Mileage, var fuelMileage, var economy) = await MileageTrackerService.GetLatestRecordAsync(vehicle);
+
+        if (latestRecord != null && !string.IsNullOrEmpty(latestRecord!.Vehicle))
+        {
+            startLocation = latestRecord.Start;
+            odoStart = latestRecord.OdoEnd;
+        }
+    }
+
+    private async Task<IEnumerable<string>> GetStartLocations(string value, CancellationToken token)
+    {
+        return await MileageTrackerService.GetStartLocationsAsync(value);
+    }
+
+    private async Task<IEnumerable<string>> GetEndLocations(string value, CancellationToken token)
+    {
+        return await MileageTrackerService.GetEndLocationsAsync(value);
+    }
+
+    private async Task<IEnumerable<string?>> GetDetails(string value, CancellationToken token)
+    {
+        return await MileageTrackerService.GetDetailsAsync(value);
+    }
+
+    private async Task SubmitAsync()
+    {
+        await form!.Validate();
+
+        if (!form.IsValid)
+        {
+            Snackbar.Add("Please fill in all required fields correctly.", Severity.Error);
+            return;
+        }
+
+        if (date.HasValue && !string.IsNullOrEmpty(startLocation) && !string.IsNullOrEmpty(endLocation))
+        {
+            MileageData.Date = DateOnly.FromDateTime(date.Value);
+            MileageData.Start = startLocation.Trim();
+            MileageData.End = endLocation.Trim();
+            MileageData.OdoStart = isImperial ? (int)Math.Round(Constants.Conversions.MilesToKm * odoStart) : odoStart;
+            MileageData.OdoEnd = isImperial ? (int)Math.Round(Constants.Conversions.MilesToKm * odoEnd) : odoEnd;
+            MileageData.Distance = isImperial ? (int)Math.Round(Constants.Conversions.MilesToKm * distance) : distance;
+            MileageData.Mileage = string.IsNullOrEmpty(gasStation) ? 0 : isImperial ? (int)Math.Round(Constants.Conversions.MilesToKm * (mileage + distance)) : (mileage + distance);
+            MileageData.Detail = detail;
+            MileageData.GasStation = gasStation;
+            MileageData.FuelType = fuelType;
+            MileageData.FuelPrice = fuelPrice;
+            MileageData.FuelFilled = fuelFilled == null ? fuelFilled : isImperial ? Math.Round((Constants.Conversions.UsGallonsToLitres * fuelFilled.Value), 3) : fuelFilled.Value;
+            MileageData.FuelRate = fuelRate;
+            MileageData.Vehicle = vehicle!;
+
+            if (fuelFilled != null && fuelFilled > 0)
+                MileageData.FuelMileage = isImperial ? Math.Round((mileage + distance) / fuelFilled!.Value, 2) : Math.Round((fuelFilled!.Value * 100m) / (mileage + distance), 2);
+            
+        }
+
+        try
+        {
+            int n = await MileageTrackerService.UpdateMileageAsync(MileageData);
+            if (!string.IsNullOrEmpty(gasStation))
+            {
+                var expenseObj = await ExpenseTrackerService.GetExpenseObjByTripIdAsync(MileageData.Id);
+                if (expenseObj != null)
+                {
+                    expenseObj.Date = MileageData.Date;
+                    expenseObj.Place = endLocation!.Split('*')[0];
+                    expenseObj.Price = fuelPrice!.Value;
+                    n = await ExpenseTrackerService.UpdateExpenseAsync(expenseObj!);
+                }
+                if (n > 0)
+                    Snackbar.Add("Entry updated successfully! Adjust the Fuel Price in Expense Tracker if any discounts are applied.", Severity.Success);
+            }
+        }
+        catch (Exception ex)
+        {
+            await DialogService.ShowMessageBoxAsync("Error", ex.Message, "OK");
+            LoggerService.Log($"Save - {this.GetType().FullName}", ex);
+        }
+
+        await OnSaved.Invoke();
+        MudDialog.Close(DialogResult.Ok(true));
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

@@ -1,0 +1,307 @@
+@inject IDialogService DialogService
+
+<MudText Typo="Typo.body2"
+         Class="mb-6"
+         Color="Color.Secondary">
+    Customize your experience by enabling only the tools you need.
+</MudText>
+
+<MudPaper Elevation="0"
+          Outlined="true"
+          Class="pa-2">
+    <MudList T="string">
+        @* Expense Tracker *@
+        <MudListItem Icon="@Icons.Material.Filled.Payments"
+                     IconColor="ToggleExpenseColor">
+            <div class="d-flex align-center justify-space-between w-100">
+                <MudText>Expense Tracker</MudText>
+                <MudSwitch T="bool"
+                           Value="IsExpenseEnabled"
+                           ValueChanged="OnExpenseChanged"
+                           Color="Color.Primary"
+                           UnCheckedColor="Color.Default"/>
+            </div>
+        </MudListItem>
+
+        <MudDivider DividerType="DividerType.Inset"/>
+
+        @* Mileage Tracker *@
+        <MudListItem Icon="@Icons.Material.Filled.DirectionsCar"
+                     IconColor="ToggleMileageColor">
+            <div class="d-flex align-center justify-space-between w-100">
+                <MudText>Mileage Tracker</MudText>
+                <MudSwitch T="bool"
+                           Value="IsMileageEnabled"
+                           ValueChanged="OnMileageChanged"
+                           Color="Color.Primary"/>
+            </div>
+        </MudListItem>
+
+        <MudDivider DividerType="DividerType.Inset"/>
+
+        @* Steps Tracker *@
+        <MudListItem Icon="@Icons.Material.Filled.DirectionsWalk"
+                     IconColor="ToggleStepsColor">
+            <div class="d-flex align-center justify-space-between w-100">
+                <MudText>Steps Tracker</MudText>
+                <MudSwitch T="bool"
+                           Value="IsStepsEnabled"
+                           ValueChanged="OnStepsChanged"
+                           Color="Color.Primary"/>
+            </div>
+        </MudListItem>
+
+        <MudDivider DividerType="DividerType.Inset"/>
+
+        @if (showShenshai)
+        {
+            @* Shenshai Calendar *@
+            <MudListItem Icon="@Icons.Material.Filled.CalendarMonth"
+                         IconColor="ToggleShenshaiColor">
+                <div class="d-flex align-center justify-space-between w-100">
+                    <MudText>Shahenshahi Calendar</MudText>
+                    <MudSwitch T="bool"
+                               Value="IsShenshaiEnabled"
+                               ValueChanged="OnShenshaiChanged"
+                               Color="Color.Primary"/>
+                </div>
+                <MudText Typo="Typo.caption"
+                         Style="font-style:italic"
+                         Color="Color.Warning">
+                    Zoroastrian community feature. Toggle off to hide this calendar from your app.
+                </MudText>
+            </MudListItem>
+        }
+    </MudList>
+
+    <MudText Typo="Typo.body2"
+             Class="mt-2">
+        <b><u>Note</u></b>: The Expense Tracker will remain enabled by default if all unchecked.
+    </MudText>
+</MudPaper>
+
+@code {
+
+    private bool IsExpenseEnabled = false, IsMileageEnabled = false, IsShenshaiEnabled = false, showShenshai = false, IsStepsEnabled = false;
+    private Color ToggleExpenseColor = Color.Surface, ToggleMileageColor = Color.Surface, ToggleShenshaiColor = Color.Surface, ToggleStepsColor = Color.Surface;
+
+    [Parameter] public EventCallback<bool> ExpenseEnabled { get; set; }
+    [Parameter] public EventCallback<bool> MileageEnabled { get; set; }
+    [Parameter] public EventCallback<bool> ShenshaiEnabled { get; set; }
+    [Parameter] public EventCallback<bool> StepsEnabled { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            (IsExpenseEnabled, IsMileageEnabled, IsShenshaiEnabled, IsStepsEnabled) = await SettingsService.GetFeaturesAsync();
+
+            if ((!IsExpenseEnabled && !IsMileageEnabled && !IsStepsEnabled) || IsShenshaiEnabled)
+                showShenshai = true;
+
+            await ExpenseEnabled.InvokeAsync(IsExpenseEnabled);
+            await MileageEnabled.InvokeAsync(IsMileageEnabled);
+            await ShenshaiEnabled.InvokeAsync(IsShenshaiEnabled);
+            await StepsEnabled.InvokeAsync(IsStepsEnabled);
+
+            ToggleExpenseColor = IsExpenseEnabled ? Color.Success : Color.Surface;
+            ToggleMileageColor = IsMileageEnabled ? Color.Success : Color.Surface;
+            ToggleShenshaiColor = IsShenshaiEnabled ? Color.Success : Color.Surface;
+            ToggleStepsColor = IsStepsEnabled ? Color.Success : Color.Surface;
+        }
+        catch (Exception ex)
+        {
+            LoggerService.Log($"OnInitializedAsync - {this.GetType().FullName}", ex);
+            Snackbar.Add(Constants.OnLoadErrorMessage, Severity.Error);
+        }
+    }
+
+    private async Task OnExpenseChanged(bool value)
+    {
+        IsExpenseEnabled = value;
+        ToggleExpenseColor = value ? Color.Success : Color.Surface;
+        await ExpenseEnabled.InvokeAsync(value);
+    }
+
+    private async Task OnMileageChanged(bool value)
+    {
+        IsMileageEnabled = value;
+        ToggleMileageColor = value ? Color.Success : Color.Surface;
+        await MileageEnabled.InvokeAsync(value);
+    }
+
+    private async Task OnStepsChanged(bool value)
+    {
+        if (value)
+        {
+            // 1. Prominent Disclosure required by Google before triggering system permission
+            bool? result = await DialogService.ShowMessageBoxAsync(
+                title: "Location & Motion Permission Notice",
+                message: "NevApps collects location and physical motion data to enable the Steps Tracker feature for accurate step counting, distance calculation, and activity tracking, even when the app is closed or not in use (Background Usage). This data is processed on-device and is never stored, retained, or shared.",
+                yesText: "Agree",
+                cancelText: "No Thanks"
+            );
+
+            if (result != true)
+            {
+                // User declined the disclosure: force switch to OFF
+                IsStepsEnabled = false;
+                ToggleStepsColor = Color.Surface;
+                StateHasChanged();
+                await StepsEnabled.InvokeAsync(false);
+                return;
+            }
+
+            // 2. Check & Request Native System Permissions
+            /*var locationStatus = await Permissions.CheckStatusAsync<Permissions.LocationWhenInUse>();
+            if (locationStatus != PermissionStatus.Granted)
+            {
+                locationStatus = await Permissions.RequestAsync<Permissions.LocationWhenInUse>();
+                if (locationStatus != PermissionStatus.Granted)
+                {
+                    IsStepsEnabled = false;
+                    ToggleStepsColor = Color.Surface;
+                    StateHasChanged();
+                    await StepsEnabled.InvokeAsync(false);
+                    return;
+                }
+            }*/
+            await CheckPermissions();
+        }
+
+        IsStepsEnabled = value;
+        ToggleStepsColor = value ? Color.Success : Color.Surface;
+        StateHasChanged();
+        await StepsEnabled.InvokeAsync(value);
+    }
+
+    private async Task CheckPermissions()
+    {
+        var locationStatus = await Permissions.CheckStatusAsync<Permissions.LocationWhenInUse>();
+        if (locationStatus != PermissionStatus.Granted)
+            await Permissions.RequestAsync<Permissions.LocationWhenInUse>();
+
+        await Permissions.CheckStatusAsync<Permissions.LocationAlways>();
+        await IsMotionEnabled();
+        StateHasChanged();
+
+        string instructions = DeviceInfo.Platform == DevicePlatform.Android
+            ? "1. Change Location permission to <b>'Allow all the time'</b>.<br/>2. Enable <b>Background Activity</b> under Battery usage."
+            : "1. Change Location permission to <b>'Always'</b>.<br/>2. Turn on <b>Background App Refresh</b>.<br/>" +
+              "3. Ensure <b>Motion & Fitness</b> is turned ON.";
+
+        bool? runSettingsSetup = await DialogService.ShowMessageBoxAsync(
+            title: "Enable Background Services",
+            markupMessage: new Microsoft.AspNetCore.Components.MarkupString(
+                "To ensure seamless tracking, please complete these manual adjustments inside phone Settings:<br/><br/>" +
+                $"{instructions}<br/><br/>"
+            ),
+            yesText: "Open Settings",
+            cancelText: "Cancel"
+        );
+
+        if (runSettingsSetup == true)
+            AppInfo.Current.ShowSettingsUI();
+    }
+
+    private async Task<bool> IsMotionEnabled()
+    {
+        // 1. Initialize a fallback status for iOS so the final 'if' statement doesn't break
+        PermissionStatus motionStatus = PermissionStatus.Granted;
+
+#if ANDROID
+        // 2. This code ONLY executes and looks for the custom class when building for Android
+        motionStatus = await Permissions.CheckStatusAsync<ActivityRecognitionPermission>();
+
+        if (motionStatus != PermissionStatus.Granted)
+        motionStatus = await Permissions.RequestAsync<ActivityRecognitionPermission>();
+#elif IOS
+        // 3. This code ONLY executes when building for iOS
+        // We query Apple's native CoreMotion permission engine directly
+        var motionAuthorization = CoreMotion.CMPedometer.AuthorizationStatus;
+
+        if (motionAuthorization == CoreMotion.CMAuthorizationStatus.Authorized)
+        {
+            motionStatus = PermissionStatus.Granted;
+        }
+        else if (motionAuthorization == CoreMotion.CMAuthorizationStatus.Denied ||
+                 motionAuthorization == CoreMotion.CMAuthorizationStatus.Restricted)
+        {
+            motionStatus = PermissionStatus.Denied;
+        }
+        else
+        {
+            try
+            {
+                using var pedometer = new CoreMotion.CMPedometer();
+                var tcs = new TaskCompletionSource<PermissionStatus>();
+
+                // Querying a tiny window of time forces iOS to trigger the native prompt
+                pedometer.QueryPedometerData(Foundation.NSDate.Now.AddSeconds(-1), Foundation.NSDate.Now, (data, error) =>
+                {
+                    // The moment the user acts on the pop-up, this callback fires
+                    var updatedStatus = CoreMotion.CMPedometer.AuthorizationStatus;
+                    tcs.SetResult(updatedStatus == CoreMotion.CMAuthorizationStatus.Authorized
+                        ? PermissionStatus.Granted
+                        : PermissionStatus.Denied);
+                });
+
+                // Wait for the user to click "Allow" or "Don't Allow" on the pop-up
+                motionStatus = await tcs.Task;
+            }
+            catch
+            {
+                // Fallback safety
+                motionStatus = PermissionStatus.Denied;
+            }
+        }
+
+#endif
+        return motionStatus == PermissionStatus.Granted;
+    }
+
+    private async Task OnShenshaiChanged(bool value)
+    {
+        if (value)
+        {
+            // 1. Prominent Disclosure required by Google before requesting Location for Sunrise calculations
+            bool? result = await DialogService.ShowMessageBoxAsync(
+                title: "Location Access Notice",
+                message: "NevApps accesses your location to calculate accurate Sunrise and Sunset times for the Shahenshahi Calendar. Your location is processed in real-time and is never stored, retained, or shared.",
+                yesText: "Agree",
+                cancelText: "No Thanks"
+            );
+
+            if (result != true)
+            {
+                // User declined the disclosure: force switch to OFF
+                IsShenshaiEnabled = false;
+                ToggleShenshaiColor = Color.Surface;
+                StateHasChanged();
+                await ShenshaiEnabled.InvokeAsync(false);
+                return;
+            }
+
+            // 2. Check & Request Native System Permissions
+            var locationStatus = await Permissions.CheckStatusAsync<Permissions.LocationWhenInUse>();
+            if (locationStatus != PermissionStatus.Granted)
+            {
+                locationStatus = await Permissions.RequestAsync<Permissions.LocationWhenInUse>();
+                if (locationStatus != PermissionStatus.Granted)
+                {
+                    IsShenshaiEnabled = false;
+                    ToggleShenshaiColor = Color.Surface;
+                    StateHasChanged();
+                    await ShenshaiEnabled.InvokeAsync(false);
+                    return;
+                }
+            }
+        }
+
+        IsShenshaiEnabled = value;
+        ToggleShenshaiColor = value ? Color.Success : Color.Surface;
+        StateHasChanged();
+        await ShenshaiEnabled.InvokeAsync(value);
+    }
+
+}

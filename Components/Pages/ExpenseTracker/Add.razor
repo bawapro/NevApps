@@ -1,0 +1,782 @@
+﻿@using Plugin.Maui.OCR
+@inject IOcrService OcrService
+@inject ReceiptService ReceiptService
+@page "/expense-tracker/add"
+
+<style>
+    .tiny-currency-icon {
+        font-size: 16px !important;
+        vertical-align: middle;
+    }
+</style>
+
+<MudContainer Class="pa-1 pb-1">
+    <MudStack Row="true"
+              AlignItems="AlignItems.Center"
+              Spacing="2">
+        <MudIcon Icon="@Icons.Material.Filled.ReceiptLong"
+                 Size="Size.Large"
+                 Color="Color.Primary"/>
+        <MudText Typo="Typo.h5"
+                 Color="Color.Primary"
+                 GutterBottom="false">
+            Expense Tracker
+        </MudText>
+    </MudStack>
+    <MudText Typo="Typo.subtitle1"
+             Style="font-style: italic; opacity: 0.85; letter-spacing: 0.3px;"
+             Class="ml-2 mt-1">
+        Add your expense or income details
+    </MudText>
+</MudContainer>
+
+@if (!string.IsNullOrEmpty(errorMsg))
+{
+    <MudAlert Severity="Severity.Error"
+              Variant="Variant.Filled"
+              Icon="@Icons.Material.Filled.Error"
+              Dense="true"
+              Class="my-4">
+        @errorMsg
+    </MudAlert>
+}
+<MudForm @ref="form"
+         @bind-IsValid="@isValid">
+    <MudAutocomplete T="ExpenseTracker"
+                     Label="Search by Category, Type, Place & Detail"
+                     ShrinkLabel="true"
+                     ValueChanged="OnSearchChanged"
+                     SearchFunc="OnSearch"
+                     AdornmentIcon="@Icons.Material.Filled.Search"
+                     AdornmentColor="Color.Secondary"
+                     Margin="Margin.Dense"
+                     Variant="Variant.Text"
+                     SelectValueOnTab="true"
+                     ToStringFunc="@(e => e == null ? null : string.Join(" • ", new[] { e.Category, e.Type, e.Place, e.Detail }.Where(s => !string.IsNullOrEmpty(s))))"
+                     Dense="true"
+                     Clearable="true"
+                     OpenOnFocus="true"
+                     ShowProgressIndicator="true"
+                     ProgressIndicatorColor="Color.Secondary"
+                     Class="pa-2"/>
+    <MudExpansionPanels Class="mx-2"
+                        Elevation="2"
+                        Square="true"
+                        Outlined="true">
+        <MudStack Spacing="1"
+                  Row="true"
+                  AlignItems="AlignItems.Start"
+                  Class="pb-2">
+            <MudButton OnClick="OnScan"
+                       Color="Color.Warning"
+                       Size="Size.Small"
+                       Variant="Variant.Text"
+                       IconSize="Size.Small"
+                       StartIcon="@Icons.Material.Rounded.Receipt">
+                Scan Receipt
+            </MudButton>
+        </MudStack>
+        <MudExpansionPanel Expanded="expenseExpanded"
+                           Text="Expense"
+                           Dense="true"
+                           Class="mb-4 rounded-lg"
+                           Style="border-left: 6px solid var(--mud-palette-info); font-weight:bold;
+            background-color: var(--mud-palette-surface);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
+            @if (isLoading)
+            {
+                <div class="d-flex justify-center my-8">
+                    <MudProgressCircular Indeterminate="true"
+                                         Color="Color.Primary"
+                                         Size="Size.Small"/>
+                </div>
+            }
+            else
+            {
+                <MudGrid>
+                    <MudItem xs="6"
+                             sm="6"
+                             md="3">
+                        <MudTextField T="DateTime?"
+                                      Format="yyyy-MM-dd"
+                                      Label="Date"
+                                      InputType="InputType.Date"
+                                      Value="date"
+                                      ValueChanged="OnDateChanged"/>
+                    </MudItem>
+
+                    <MudItem xs="6"
+                             sm="6"
+                             md="3">
+                        <MudNumericField @bind-Value="price"
+                                         T="decimal?"
+                                         Label="Amount"
+                                         IconSize="Size.Small"
+                                         Required="true"
+                                         Margin="Margin.Dense"
+                                         InputMode="@(InputMode.@decimal)"
+                                         Format="N2"
+                                         Culture="@CultureInfo.InvariantCulture"
+                                         Min="0"
+                                         Max="99999"
+                                         Placeholder="0.00"
+                                         Adornment="Adornment.Start"
+                                         AdornmentColor="Color.Default"
+                                         AdornmentIcon="@currencyIcon"
+                                         Clearable="true"
+                                         HideSpinButtons="true"/>
+                    </MudItem>
+
+                    <MudItem xs="6"
+                             sm="6"
+                             md="3">
+                        <MudAutocomplete Value="category"
+                                         ValueChanged="OnCategoryChanged"
+                                         @ref="categoryRef"
+                                         T="string"
+                                         Label="Category"
+                                         HelperText="Select Category First"
+                                         MaxLength="50"
+                                         SearchFunc="GetCategories"
+                                         Validation="@(new Func<string, IEnumerable<string>>(ValidateCategoryType))"
+                                         IconSize="Size.Small"
+                                         AdornmentIcon="@Icons.Material.Filled.Abc"
+                                         Variant="Variant.Text"
+                                         Margin="Margin.Dense"
+                                         Dense="true"
+                                         Clearable="true"
+                                         Required="true"
+                                         CoerceText="true"
+                                         CoerceValue="true"/>
+                    </MudItem>
+
+                    <MudItem xs="6"
+                             sm="6"
+                             md="3">
+                        <MudAutocomplete Value="type"
+                                         ValueChanged="OnTypeChanged"
+                                         @ref="typeRef"
+                                         T="string"
+                                         Label="Type"
+                                         HelperText="@typeHelperText"
+                                         MaxLength="50"
+                                         SearchFunc="GetTypes"
+                                         Validation="@(new Func<string, IEnumerable<string>>(ValidateCategoryType))"
+                                         IconSize="Size.Small"
+                                         AdornmentIcon="@Icons.Material.Filled.AutoAwesome"
+                                         Variant="Variant.Text"
+                                         Margin="Margin.Dense"
+                                         Disabled="typeDisabled"
+                                         Dense="true"
+                                         Clearable="true"
+                                         Required="true"
+                                         CoerceText="false"
+                                         CoerceValue="true"/>
+                    </MudItem>
+
+                    <MudItem xs="12"
+                             sm="12"
+                             md="6">
+                        <MudAutocomplete Value="place"
+                                         ValueChanged="OnPlaceChanged"
+                                         @ref="placeRef"
+                                         T="string"
+                                         Label="Place"
+                                         HelperText="Select Place After Type"
+                                         MaxLength="50"
+                                         SearchFunc="GetPlaces"
+                                         Validation="@(new Func<string, IEnumerable<string>>(ValidatePlace))"
+                                         IconSize="Size.Small"
+                                         AdornmentIcon="@Icons.Material.Filled.Bungalow"
+                                         Variant="Variant.Text"
+                                         Margin="Margin.Dense"
+                                         Disabled="placeDisabled"
+                                         Dense="true"
+                                         Clearable="true"
+                                         Required="true"
+                                         CoerceText="false"
+                                         CoerceValue="true"/>
+                    </MudItem>
+
+                    <MudItem xs="12"
+                             sm="12"
+                             md="6">
+                        <MudAutocomplete @bind-Value="detail"
+                                         @ref="detailRef"
+                                         T="string"
+                                         Label="Detail"
+                                         SearchFunc="GetDetails"
+                                         MaxLength="200"
+                                         Disabled="detailDisabled"
+                                         IconSize="Size.Small"
+                                         AdornmentIcon="@Icons.Material.Filled.Notes"
+                                         Variant="Variant.Text"
+                                         Margin="Margin.Dense"
+                                         Dense="true"
+                                         Clearable="true"
+                                         Required="true"
+                                         CoerceText="false"
+                                         CoerceValue="true"/>
+                    </MudItem>
+
+                </MudGrid>
+            }
+        </MudExpansionPanel>
+
+        <MudExpansionPanel Text="Auto Pay"
+                           Dense="true"
+                           Class="mb-4 rounded-lg"
+                           Style="border-left: 6px solid var(--mud-palette-success); font-weight:bold;
+            background-color: var(--mud-palette-surface);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
+            <MudGrid>
+                <MudItem xs="12"
+                         sm="12"
+                         md="6">
+                    <MudSelect T="string"
+                               Label="Frequency"
+                               Value="frequency"
+                               ValueChanged="OnAutoPayDateChanged"
+                               Margin="Margin.Dense"
+                               Dense="true"
+                               AdornmentIcon="@Icons.Material.Filled.CalendarMonth"
+                               IconSize="Size.Small">
+                        @foreach (var kvp in Constants.AutoPay.Frequencies)
+                        {
+                            <MudSelectItem Value="@kvp.Key">@kvp.Value</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+
+                <MudItem xs="12"
+                         sm="12"
+                         md="6">
+                    <MudDatePicker @bind-Date="autoPayDate"
+                                   Label="AutoPay Date"
+                                   DateFormat="yyyy-MM-dd"
+                                   IconSize="Size.Small"
+                                   Margin="Margin.Dense"
+                                   Variant="Variant.Text"
+                                   Style="font-size:small"
+                                   Disabled="true"/>
+                </MudItem>
+            </MudGrid>
+        </MudExpansionPanel>
+
+        <MudExpansionPanel Text="Trip"
+                           Dense="true"
+                           Class="mb-4 rounded-lg"
+                           Style="border-left: 6px solid var(--mud-palette-warning); font-weight:bold;
+            background-color: var(--mud-palette-surface);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
+            <MudGrid>
+                <MudItem xs="12"
+                         sm="12"
+                         md="6">
+                    <MudCheckBox T="bool?"
+                                 Value="tripEnabled"
+                                 ValueChanged="OnTripChanged"
+                                 Label="Trip Enabled"
+                                 Size="Size.Small"
+                                 Color="Color.Secondary"
+                                 Dense="true"/>
+                    <MudText Typo="Typo.caption"
+                             Color="Color.Warning">@tripMsg</MudText>
+                </MudItem>
+
+                <MudItem xs="12"
+                         sm="12"
+                         md="6">
+                    <MudAutocomplete @bind-Value="tripName"
+                                     T="string"
+                                     Label="Trip Destination"
+                                     SearchFunc="GetTrips"
+                                     MaxLength="75"
+                                     IconSize="Size.Small"
+                                     AdornmentIcon="@Icons.Material.Filled.ModeOfTravel"
+                                     Variant="Variant.Text"
+                                     Margin="Margin.Dense"
+                                     Dense="true"
+                                     Clearable="true"
+                                     CoerceText="false"
+                                     CoerceValue="true"/>
+                </MudItem>
+            </MudGrid>
+        </MudExpansionPanel>
+    </MudExpansionPanels>
+</MudForm>
+
+<MudStack Row="true"
+          AlignItems="AlignItems.Center"
+          Justify="Justify.Center"
+          Class="py-2">
+    <MudButton OnClick="OnSubmit"
+               Color="Color.Primary"
+               Size="Size.Small"
+               Variant="Variant.Outlined"
+               IconSize="Size.Small"
+               StartIcon="@Icons.Material.Rounded.Save"
+               Disabled="isDisabled">
+        Save
+    </MudButton>
+
+    <MudButton OnClick="OnClear"
+               Color="Color.Default"
+               Size="Size.Small"
+               Variant="Variant.Outlined"
+               IconSize="Size.Small"
+               StartIcon="@Icons.Material.Rounded.ClearAll">
+        Clear
+    </MudButton>
+
+    <MudButton OnClick="OnView"
+               Size="Size.Small"
+               Color="Color.Tertiary"
+               Variant="Variant.Outlined"
+               IconSize="Size.Small"
+               StartIcon="@Icons.Material.Rounded.TableView"
+               Disabled="isDisabled">
+        View
+    </MudButton>
+</MudStack>
+
+<div class="home-footer">
+    <div class="item">
+        Expense <br/>
+        <MudIcon Class="tiny-currency-icon"
+                 Size="Size.Small"
+                 Icon="@currencyIcon"/>
+        <strong class="expense">@($"{expense:N2}")</strong>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="item">
+        Income <br/>
+        <MudIcon Class="tiny-currency-icon"
+                 Size="Size.Small"
+                 Icon="@currencyIcon"/>
+        <strong class="income">@($"{income:N2}")</strong>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="year">
+        Month <br/>
+        @DateTime.Now.ToString("MMMM")
+    </div>
+</div>
+
+@code {
+
+    private bool isLoading = false, isValid = false, typeDisabled = true, placeDisabled = true, detailDisabled = true, isDisabled = false, categorySetting = false, expenseExpanded = false;
+    private bool? tripEnabled = false;
+    private decimal? price, expense = 0, income = 0;
+    private string? category, type, place, detail, frequency, tripName, errorMsg, currencyIcon;
+    private string tripMsg => tripEnabled == true ? "Disable once your trip is over." : "Enable when starting a new trip.";
+    private string typeHelperText = "Select Type Next";
+    private DateTime? date, autoPayDate;
+    private MudAutocomplete<string>? categoryRef, typeRef, placeRef, detailRef;
+    private List<string>? types, places;
+    private List<ExpenseTracker> Expenses = new();
+    private MudForm? form;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            date = DateTime.Today;
+            (tripEnabled, tripName) = StateService.GetTripState();
+            currencyIcon = await SettingsService.GetCurrencyIcon();
+            (expense, income) = await ExpenseTrackerService.GetTotalExpenseAndIncomeAsync(true);
+        }
+        catch (Exception ex)
+        {
+            LoggerService.Log($"OnInitializedAsync - {this.GetType().FullName}", ex);
+            Snackbar.Add(Constants.OnLoadErrorMessage, Severity.Error);
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        try
+        {
+            if (firstRender)
+            {
+                var Settings = await SettingsService.GetSettingsAsync();
+                var country = Settings.Where(x => x.SettingKey == "country");
+                var CategorySetting = Settings.Where(x => x.SettingKey == "category");
+
+                if (!CategorySetting.Any())
+                {
+                    isDisabled = true;
+                    await DialogService.ShowMessageBoxAsync("Getting Started", "No categories found yet.\nSelect them in Settings - ⚙️ to begin.", "OK");
+                    StateHasChanged();
+                    return;
+                }
+
+                if (country != null && country.Where(x => x.SettingKey == "country").FirstOrDefault()!.SettingValue == "NA")
+                {
+                    isDisabled = true;
+                    await DialogService.ShowMessageBoxAsync("Getting Started", "No country selected yet.\nSelect your country in Settings - ⚙️ to begin.", "OK");
+                    StateHasChanged();
+                    return;
+                }
+
+                if (!string.IsNullOrEmpty(CategorySetting.FirstOrDefault()!.SettingValue))
+                    categorySetting = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            LoggerService.Log($"OnAfterRenderAsync - {this.GetType().FullName}", ex);
+        }
+    }
+
+    private async Task<IEnumerable<ExpenseTracker>> OnSearch(string value, CancellationToken token)
+    {
+        var obj = await ExpenseTrackerService.SearchExpenseAsync(value);
+        return obj.DistinctBy(d => d.Detail);
+    }
+
+    private void OnSearchChanged(ExpenseTracker? newValue)
+    {
+        if (newValue != null)
+        {
+            category = newValue.Category;
+            type = newValue.Type;
+            place = newValue.Place;
+            detail = newValue.Detail;
+            price = newValue.Price;
+            typeDisabled = false;
+            placeDisabled = false;
+            detailDisabled = false;
+            expenseExpanded = true;
+        }
+        else
+            expenseExpanded = false;
+    }
+
+    private void OnDateClear()
+    {
+        date = DateTime.Now;
+    }
+
+    private async Task<IEnumerable<string>> GetCategories(string value, CancellationToken token)
+    {
+        var categories = await ExpenseTrackerService.GetCategoriesAsync(value, !categorySetting);
+
+        if (!categories.Any(c => c.Equals("Income", StringComparison.OrdinalIgnoreCase)))
+        {
+            categories.Insert(0, "Income");
+        }
+
+        return categories;
+    }
+
+    private void OnCategoryChanged(string value)
+    {
+        category = value;
+
+        if (!string.IsNullOrEmpty(category))
+            typeDisabled = false;
+        else
+            typeDisabled = true;
+
+        if (categorySetting)
+        {
+            if (category == "Bank")
+                typeHelperText = "e.g. Cash, Cheque, Credit Card, Draft, Fee, Transfer";
+            else if (category == "Car")
+                typeHelperText = "e.g. Gas, Parking, Rental, Insurance, Toll, Service";
+            else if (category == "Food")
+                typeHelperText = "e.g. Dine-in, Takeout, Drinks, DoorDash, UberEats";
+            else if (category == "Medical")
+                typeHelperText = "e.g. Doctor, Pharmacy, Lab, Therapy";
+            else if (category == "Income")
+                typeHelperText = "e.g. Salary, Bonus, Investment, Refund";
+            else if (category == "Travel")
+                typeHelperText = "e.g. Hotel, Ticket, Ferry, Bus, Turo, Uber";
+            else if (category == "Shopping")
+                typeHelperText = "e.g. Online, Electronics, Groceries, Gifts, Store";
+            else if (category == "Payment")
+                typeHelperText = "e.g. Car, Rent, Utilities, Subscription, Insurance";
+            else
+                typeHelperText = "Select Type after Category";
+        }
+    }
+
+    private void OnTypeChanged(string value)
+    {
+        type = value;
+
+        if (!string.IsNullOrEmpty(type))
+            placeDisabled = false;
+        else
+            placeDisabled = true;
+    }
+
+    private void OnPlaceChanged(string value)
+    {
+        place = value;
+        if (!string.IsNullOrEmpty(place))
+            detailDisabled = false;
+        else
+            detailDisabled = true;
+    }
+
+    private IEnumerable<string> ValidateCategoryType(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            yield return "This is required.";
+            yield break;
+        }
+
+        if (!System.Text.RegularExpressions.Regex.IsMatch(value.Trim(), @"^[a-zA-Z]+$"))
+        {
+            yield return "Only letters allowed.";
+        }
+
+        if (value.Trim().Length < 3 || value.Trim().Length > 20)
+            yield return "Must be at least 3-20 characters.";
+    }
+
+    private IEnumerable<string> ValidatePlace(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            yield return "Place is required.";
+            yield break;
+        }
+
+        if (!System.Text.RegularExpressions.Regex.IsMatch(value.Trim(), @"^[a-zA-Z0-9'’\- &.,()/]+$"))
+        {
+            yield return "Only letters, numbers and some special characters allowed.";
+        }
+
+        if (value.Trim().Length < 2 || value.Trim().Length > 50)
+            yield return "Name must be at least 3-50 characters.";
+    }
+
+    private async Task<IEnumerable<string>> GetTypes(string value, CancellationToken token)
+    {
+        if (!string.IsNullOrEmpty(value))
+        {
+            var obj = await ExpenseTrackerService.GetTypesAsync(category);
+            types = obj.ToList();
+            return types
+                .Where(p => p.ToLowerInvariant().Contains(value, StringComparison.OrdinalIgnoreCase))
+                .OrderBy(p => p.StartsWith(value, StringComparison.OrdinalIgnoreCase) ? 0 : 1)
+                .ThenBy(p => p);
+        }
+
+        return await ExpenseTrackerService.GetTypesAsync(category);
+    }
+
+    private async Task<IEnumerable<string>> GetPlaces(string value, CancellationToken token)
+    {
+        if (!string.IsNullOrEmpty(value))
+        {
+            var obj = await ExpenseTrackerService.GetPlacesAsync(type);
+            places = obj.ToList();
+            return places
+                .Where(p => p.ToLowerInvariant().Contains(value, StringComparison.OrdinalIgnoreCase))
+                .OrderBy(p => p.StartsWith(value, StringComparison.OrdinalIgnoreCase) ? 0 : 1)
+                .ThenBy(p => p);
+        }
+
+        return await ExpenseTrackerService.GetPlacesAsync(type);
+    }
+
+    private async Task<IEnumerable<string>> GetDetails(string value, CancellationToken token)
+    {
+        return await ExpenseTrackerService.GetDetailsAsync(value);
+    }
+
+    private async Task<IEnumerable<string?>> GetTrips(string value, CancellationToken token)
+    {
+        return await ExpenseTrackerService.GetTripsAsync(value);
+    }
+
+    private void OnDateChanged(DateTime? value)
+    {
+        date = value == null ? DateTime.Now : value;
+        UpdateAutoPayDate();
+    }
+
+    private void OnAutoPayDateChanged(string? value)
+    {
+        frequency = value;
+        UpdateAutoPayDate();
+    }
+
+    private void UpdateAutoPayDate()
+    {
+        if (!string.IsNullOrEmpty(frequency) && date.HasValue)
+            autoPayDate = ExpenseTrackerService.GetNextDate(date.Value, frequency);
+    }
+
+    private void OnTripChanged(bool? value)
+    {
+        tripEnabled = value;
+        tripName = value == null || value.Value == false ? string.Empty : tripName;
+        StateService.SetTripState(tripEnabled!.Value, tripName!);
+    }
+
+    private async Task OnSubmit()
+    {
+        await form!.Validate();
+
+        if (!isValid)
+        {
+            Snackbar.Add("Please fill in all required fields correctly.", Severity.Error);
+            return;
+        }
+
+        if (date == null || (price == null || price == 0) || string.IsNullOrEmpty(category) || string.IsNullOrEmpty(type) || string.IsNullOrEmpty(place) || string.IsNullOrEmpty(detail))
+        {
+            Snackbar.Add("Please fill in all required fields maked with *", Severity.Warning);
+            return;
+        }
+
+        if (tripEnabled == true && string.IsNullOrEmpty(tripName))
+        {
+            Snackbar.Add("Please provide a trip destination or disable the trip option.", Severity.Warning);
+            return;
+        }
+
+        try
+        {
+            var newExpense = new ExpenseTracker
+            {
+                Date = DateOnly.FromDateTime(date!.Value),
+                Category = category!.Trim(),
+                Type = type!.Trim(),
+                Place = place!.Trim(),
+                Price = price!.Value,
+                Detail = detail!.Trim(),
+                AutoPay = string.IsNullOrEmpty(frequency) ? null : 1,
+                Frequency = frequency,
+                AutoPayDate = autoPayDate != null ? DateOnly.FromDateTime(autoPayDate.Value) : null,
+                TripFlag = tripEnabled == null ? null : tripEnabled.Value == true ? 1 : null,
+                TripDestination = tripEnabled == null ? null : tripEnabled.Value == true ? tripName : null
+            };
+
+            int n = await ExpenseTrackerService.AddExpenseAsync(newExpense);
+
+            if (n > 0)
+            {
+                Snackbar.Add("Entry added successfully!", Severity.Success);
+                (expense, income) = await ExpenseTrackerService.GetTotalExpenseAndIncomeAsync(true);
+            }
+
+            if (!string.IsNullOrEmpty(tripName))
+                StateService.SetTripState(tripEnabled!.Value, tripName);
+        }
+        catch (DbUpdateException ex)
+        {
+            if (ex.InnerException is SqliteException sqliteEx && sqliteEx.SqliteErrorCode == 19) // 19 is SQLITE_CONSTRAINT
+            {
+                errorMsg = "Duplicate entry entered.";
+            }
+            else
+            {
+                errorMsg = "An error occurred while saving.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMsg = ex.Message;
+            LoggerService.Log($"Submit - {this.GetType().FullName}", ex);
+        }
+    }
+
+    private async Task OnClear()
+    {
+        date = DateTime.Today;
+        price = null;
+
+        await Task.WhenAll(categoryRef!.ClearAsync(), typeRef!.ClearAsync(), placeRef!.ClearAsync(), detailRef!.ClearAsync());
+
+        await categoryRef.ResetValidationAsync();
+        await typeRef.ResetValidationAsync();
+        await placeRef.ResetValidationAsync();
+        await detailRef.ResetValidationAsync();
+
+        frequency = null;
+        autoPayDate = null;
+        errorMsg = "";
+    }
+
+    private void OnView()
+    {
+        NavigationManager.NavigateTo("/expense-tracker/view");
+    }
+
+    private async Task OnScan()
+    {
+        try
+        {
+            PermissionStatus status = await Permissions.CheckStatusAsync<Permissions.Camera>();
+
+            if (status != PermissionStatus.Granted)
+            {
+                status = await Permissions.RequestAsync<Permissions.Camera>();
+                if (status != PermissionStatus.Granted) return;
+            }
+
+            var photo = await MediaPicker.Default.CapturePhotoAsync(new MediaPickerOptions());
+
+            if (photo == null) return;
+
+            isLoading = true;
+            expenseExpanded = true;
+            typeDisabled = false;
+            placeDisabled = false;
+            detailDisabled = false;
+            StateHasChanged();
+
+            // WARM UP THE OCR ENGINE (Fixes the iPhone error)
+            await OcrService.InitAsync();
+            await ProcessLocal(photo);
+
+            isLoading = false;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            errorMsg = ex.Message;
+        }
+    }
+
+    private async Task ProcessLocal(FileResult photo)
+    {
+        using var stream = await photo.OpenReadAsync();
+        using var ms = new MemoryStream();
+        await stream.CopyToAsync(ms);
+        ms.Position = 0;
+        byte[] imageBytes = ms.ToArray();
+        byte[] optimizedBytes = await ReceiptService.PreprocessImageForOcrAsync(imageBytes);
+
+        var options = new OcrOptions.Builder()
+            .SetLanguage("en-US")
+            .SetTryHard(true)
+            .Build();
+
+        OcrResult result = await OcrService.RecognizeTextAsync(optimizedBytes, options);
+
+        if (result != null && result.Success)
+        {
+            List<string> Places = await ExpenseTrackerService.GetPlacesForReceiptScanAsync();
+
+            (date, place, price) = ReceiptService.ParseReceiptData(result.AllText, Places);
+
+            if (place != "Unknown")
+                (category, type, detail) = await ExpenseTrackerService.GetDataByPlaceAsync(place);
+        }
+
+        StateHasChanged();
+    }
+
+}

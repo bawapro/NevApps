@@ -1,0 +1,305 @@
+﻿@if (isVisible)
+{
+    @foreach (var summary in summaries)
+    {
+        <MudCard Elevation="4"
+                 Class="mb-6 rounded-xl overflow-hidden"
+                 Style="border-top: 6px solid var(--mud-palette-primary); box-shadow: 0 10px 15px -3px rgba(var(--mud-palette-primary-rgb), 0.2);">
+            <MudGrid Spacing="0">
+                <MudItem xs="12" sm="5">
+                    <div style="position: relative; height: 100%; min-height: 160px;" class="d-flex align-center justify-center">
+                        @if (summary.IsLoading)
+                        {
+                            <MudProgressCircular Color="Color.Info" Indeterminate="true" Size="Size.Large" />
+                        }
+                        else if (!string.IsNullOrEmpty(summary.ImageUrl))
+                        {
+                            <MudImage Src="@summary.ImageUrl" Alt="Vehicle" Fluid="true" ObjectFit="ObjectFit.Cover" Style="width: 100%; height: 100%; min-height: 160px;" />
+                        }
+                        else
+                        {
+                            <MudIcon Icon="@(summary.IsEv? Icons.Material.Filled.ElectricCar : Icons.Material.Filled.DirectionsCar)" Size="Size.Large" Style="opacity: 0.3;" />
+                        }
+
+                        <div style="position: absolute; bottom: 8px; right: 8px; display: flex; gap: 8px;">
+                            @if (!string.IsNullOrEmpty(summary.ImageUrl))
+                            {
+                                <MudIconButton OnClick="@(() => ClearVehicleImage(summary))" Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" Style="background: rgba(255,255,255,0.8);" />
+                            }
+
+                            <MudIconButton OnClick="@(() => TriggerImageUpload(summary))" Icon="@Icons.Material.Filled.PhotoCamera" Color="Color.Info" Size="Size.Small" Style="background: rgba(255,255,255,0.8);" />
+                        </div>
+                    </div>
+                </MudItem>
+
+                <MudItem xs="12" sm="7" Class="pa-4">
+                    <MudStack Spacing="1">
+                        <MudText Typo="Typo.h6"><b>@summary.Vehicle</b></MudText>
+
+                        <MudDivider Class="my-1" />
+
+                        <MudSimpleTable Dense="true" Hover="false" Elevation="0" Style="background: transparent;">
+                            <tbody>
+                                <tr>
+                                    <td><MudText Typo="Typo.caption">Distance</MudText></td>
+                                    <td class="text-end"><b>@summary.TotalMileage @distanceLabel</b></td>
+                                </tr>
+                                <tr>
+                                    <td><MudText Typo="Typo.caption">Cost</MudText></td>
+                                    <td class="text-end"><b>@summary.TotalFuelCost.ToString("C", new CultureInfo(culture))</b></td>
+                                </tr>
+                                <tr>
+                                    <td><MudText Typo="Typo.caption">@filledLabel</MudText></td>
+                                    <td class="text-end"><b>@summary.TotalFuelFilled @volumeUnit</b></td>
+                                </tr>
+                                <tr>
+                                    <td><MudText Typo="Typo.caption">@mileageLabel</MudText></td>
+                                    <td class="text-end"><b>@summary.FuelMileage @economyUnit</b></td>
+                                </tr>
+                            </tbody>
+                        </MudSimpleTable>
+                    </MudStack>
+                </MudItem>
+            </MudGrid>
+        </MudCard>
+    }
+}
+
+@code {
+
+    bool isImperial = false, hasEv = false, hasGas = false, isVisible = false;
+    string culture = "", distanceLabel = "", filledLabel = "", mileageLabel = "", volumeUnit = "", economyUnit = "";
+    private List<VehicleSummary> summaries = new();
+    Breakpoint breakpoint = Breakpoint.None;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            List<Setting> Settings = await SettingsService.GetSettingsAsync();
+            string country = Settings.Where(x => x.SettingKey == "country").FirstOrDefault()?.SettingValue!;
+            culture = SettingsService.GetCultureCode(country);
+            isImperial = Settings.Any(x => x.SettingKey == "country" && x.SettingValue.ToLower() == "united states");
+
+            await LoadVehicleSummaries();
+        }
+        catch (Exception ex)
+        {
+            LoggerService.Log($"OnInitializedAsync - {this.GetType().FullName}", ex);
+            Snackbar.Add(Constants.OnLoadErrorMessage, Severity.Error);
+        }
+
+    }
+
+    private async Task LoadVehicleSummaries()
+    {
+        var vehicleNames = await MileageTrackerService.GetAllVehiclesAsync();
+        summaries.Clear(); // Clear to prevent duplicates on refresh
+
+        foreach (string v in vehicleNames)
+        {
+            var (name, mileage, cost, fuel, efficiency) = await MileageTrackerService.GetMileageSummaryAsync(v);
+            bool isEV = StateService.GetVehicleIsEV(name);
+
+            // Fetch and process image for this specific vehicle
+            string vehicleImage = "";
+            string path = await SettingsService.GetVehicleImageAsync(name);
+
+            if (!string.IsNullOrEmpty(path) && File.Exists(path))
+            {
+                try
+                {
+                    byte[] bytes = await File.ReadAllBytesAsync(path);
+                    string extension = Path.GetExtension(path).ToLower().TrimStart('.');
+                    string mimeType = extension switch
+                    {
+                        "png" => "image/png",
+                        "gif" => "image/gif",
+                        "webp" => "image/webp",
+                        _ => "image/jpeg"
+                    };
+                    vehicleImage = $"data:{mimeType};base64,{Convert.ToBase64String(bytes)}";
+                }
+                catch { /* Handle locked files if necessary */ }
+            }
+
+            summaries.Add(new VehicleSummary
+            {
+                Vehicle = name,
+                ImageUrl = vehicleImage,
+                TotalMileage = mileage.ToString("N0"),
+                TotalFuelCost = cost,
+                TotalFuelFilled = fuel.ToString(),
+                FuelMileage = efficiency.ToString(),
+                IsEv = isEV
+            });
+        }
+
+        breakpoint = summaries.Count > 1 ? Breakpoint.SmAndDown : Breakpoint.Sm;
+
+        hasEv = summaries.Any(x => x.IsEv);
+        hasGas = summaries.Any(x => !x.IsEv);
+
+        if (hasEv && !hasGas)
+        {
+            filledLabel = "Energy";
+            mileageLabel = "Efficiency";
+            volumeUnit = "(kWh)";
+            economyUnit = isImperial ? "(mi/kWh)" : "(kWh/100km)";
+        }
+        else if (hasGas && !hasEv)
+        {
+            filledLabel = "Fuel Filled";
+            mileageLabel = "Fuel Economy";
+            volumeUnit = isImperial ? "(Gallons)" : "(Litres)";
+            economyUnit = isImperial ? "(MPG)" : "(L/100km)";
+        }
+        else
+        {
+            filledLabel = "Volume";
+            mileageLabel = "Economy";
+            foreach (var summary in summaries)
+            {
+                summary.TotalFuelFilled += summary.IsEv ? "(kWh)" : isImperial ? "(G)" : "(L)";
+                summary.FuelMileage += summary.IsEv ? (isImperial ? "(mi/kWh)" : "(kWh/100km)") : (isImperial ? "(MPG)" : "(L/100km)");
+            }
+        }
+        distanceLabel = (isImperial ? "(miles)" : "(km)");
+        isVisible = summaries.Count > 0;
+    }
+
+    private async Task TriggerImageUpload(VehicleSummary item)
+    {
+        try
+        {
+            var customFileTypes = new FilePickerFileType(
+                new Dictionary<DevicePlatform, IEnumerable<string>>
+                {
+                { DevicePlatform.iOS, new[] { "public.image" } },
+                { DevicePlatform.Android, new[] { "image/*" } },
+                { DevicePlatform.WinUI, new[] { ".jpg", ".png", ".gif" } }
+                });
+
+            var result = await FilePicker.Default.PickAsync(new PickOptions
+            {
+                PickerTitle = "Select Vehicle Photo",
+                FileTypes = customFileTypes
+            });
+
+            if (result == null) return;
+
+            // 1. Initial Size Check (Stream-based for Android/iOS accuracy)
+            using var streamCheck = await result.OpenReadAsync();
+            long originalBytes = streamCheck.Length;
+            System.Diagnostics.Debug.WriteLine($"[DEBUG] Picked File Size: {originalBytes / 1024.0:F2} KB");
+
+            if (originalBytes > 10 * 1024 * 1024)
+            {
+                var page = Application.Current?.Windows?.FirstOrDefault()?.Page;
+                if (page != null)
+                {
+                    await page.DisplayAlertAsync("File Too Large", "Please select an image under 10MB.", "OK");
+                }
+                else
+                {
+                    Snackbar.Add("Please select an image under 10MB.", Severity.Warning);
+                }
+                return;
+            }
+
+            item.IsLoading = true;
+            StateHasChanged();
+
+            // 2. Offload processing to background thread
+            _ = Task.Run(async () =>
+             {
+                 try
+                 {
+                     var fileName = Path.GetFileNameWithoutExtension(result.FileName) + ".png";
+                     var localPath = Path.Combine(FileSystem.AppDataDirectory, fileName);
+
+                     using (var stream = await result.OpenReadAsync())
+                     {
+                         var platformImage = Microsoft.Maui.Graphics.Platform.PlatformImage.FromStream(stream);
+                         if (platformImage != null)
+                         {
+                             int targetWidth = 800;
+                             if (platformImage.Width < targetWidth)
+                                 targetWidth = (int)platformImage.Width;
+
+                             float aspect = (float)platformImage.Height / (float)platformImage.Width;
+                             int targetHeight = (int)(targetWidth * aspect);
+
+                             targetWidth = Math.Max(1, targetWidth);
+                             targetHeight = Math.Max(1, targetHeight);
+
+                             var resizedImage = platformImage.Resize(targetWidth, targetHeight);
+
+                             using var newFile = File.OpenWrite(localPath);
+                             await resizedImage.SaveAsync(newFile, ImageFormat.Png);
+                         }
+                     }
+
+                     byte[] imageBytes = await File.ReadAllBytesAsync(localPath);
+
+                     await MainThread.InvokeOnMainThreadAsync(() =>
+                     {
+                         item.ImageUrl = $"data:image/png;base64,{Convert.ToBase64String(imageBytes)}";
+                         item.IsLoading = false;
+                         StateHasChanged();
+                     });
+
+                     await SettingsService.UpdateVehicleImagePathAsync(item.Vehicle, localPath);
+                 }
+                 catch (Exception ex)
+                 {
+                     LoggerService.Log($"PickImage - {this.GetType().FullName}", ex);
+                     await MainThread.InvokeOnMainThreadAsync(() =>
+                     {
+                         item.IsLoading = false;
+                         StateHasChanged();
+                         Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+                     });
+                 }
+             });
+        }
+        catch (Exception ex)
+        {
+            LoggerService.Log($"PickImage - {this.GetType().FullName}", ex);
+            Snackbar.Add("Selection cancelled.", Severity.Info);
+        }
+    }
+
+    private async Task ClearVehicleImage(VehicleSummary item)
+    {
+        var page = Application.Current?.Windows?.FirstOrDefault()?.Page;
+        if (page == null)
+        {
+            Snackbar.Add("Unable to show confirmation dialog.", Severity.Warning);
+            return;
+        }
+
+        bool confirmed = await page.DisplayAlertAsync("Remove Image",
+            "This will remove the image from the database. Are you sure?", "Yes", "No");
+
+        if (confirmed)
+        {
+            item.ImageUrl = "";
+            await SettingsService.UpdateVehicleImagePathAsync(item.Vehicle, "");
+            Snackbar.Add("Image removed from database.", Severity.Info);
+            StateHasChanged();
+        }
+    }
+
+    public class VehicleSummary
+    {
+        public string Vehicle { get; set; } = "";
+        public string? ImageUrl { get; set; }
+        public string TotalMileage { get; set; } = "";
+        public decimal TotalFuelCost { get; set; }
+        public string TotalFuelFilled { get; set; } = "";
+        public string FuelMileage { get; set; } = "";
+        public bool IsEv { get; set; }
+        public bool IsLoading { get; set; } = false;
+    }
+}

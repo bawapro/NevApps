@@ -1,0 +1,96 @@
+﻿<MudContainer>
+    <MudPaper Outlined="true">
+        <MudStack>
+            <MudRadioGroup T="string" Value="SelectedOption" ValueChanged="OnValueChanged">
+                <MudRadio Value="@("Fixed")" Color="Color.Primary" Dense="true" Size="Size.Small" Class="ml-2 mt-1">Fixed</MudRadio>
+                <MudRadio Value="@("Custom")" Color="Color.Secondary" Dense="true" Size="Size.Small" Class="ml-2 mt-1">Custom</MudRadio>
+            </MudRadioGroup>
+
+            @if (SelectedOption == "Fixed")
+            {
+                <MudText Typo="Typo.caption" Class="ml-2">(Selected: @(SelectedCategories == null ? 0 : SelectedCategories.Count))</MudText>
+                <MudChipSet SelectedValues="SelectedCategories" SelectedValuesChanged="OnSelectedValuesChanged" T="string" SelectionMode="SelectionMode.MultiSelection" Color="Color.Tertiary" Variant="Variant.Text">
+                    @foreach (var category in AllCategories!)
+                    {
+                        <MudChip Text="@category" Size="Size.Small" />
+                    }
+                </MudChipSet>
+                <MudText Typo="Typo.caption" Align="Align.Center" Color="Color.Warning">Tap it to select or deselect.</MudText>
+            }
+
+        </MudStack>
+    </MudPaper>
+</MudContainer>
+
+@code {
+    [Parameter] public List<string>? SelectedCategory { get; set; }
+    [Parameter] public EventCallback<List<string>?> SelectedCategoryChanged { get; set; }
+
+    public string? SelectedOption { get; set; }
+
+    private IReadOnlyCollection<string>? AllCategories, SelectedCategories;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await SetCategories("");
+        await SelectedCategoryChanged.InvokeAsync(SelectedCategories!.ToList());
+    }
+
+    private async Task SetCategories(string? option)
+    {
+        AllCategories = Constants.Categories.AllCategories;
+
+        var Settings = await SettingsService.GetSettingsAsync();
+        var CategorySetting = Settings.Where(x => x.SettingKey == "category");
+
+        if (CategorySetting.Any())
+        {
+            SelectedCategories = (CategorySetting.Select(s => s.SettingValue)
+                                 .FirstOrDefault() ?? "")
+                                 .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                                 .ToList();
+
+            SelectedOption = SelectedCategories.Count == 0 ? "Custom" : "Fixed";
+        }
+        else
+        {
+            //First time, no setting, default to all categories
+            SelectedCategories = AllCategories;
+            SelectedOption = "Fixed";
+        }
+
+    }
+
+    private async Task OnValueChanged(string value)
+    {
+        SelectedOption = value;
+        await SelectCategoryValues(value);
+    }
+
+    private async Task OnSelectedValuesChanged(IReadOnlyCollection<string> values)
+    {
+        SelectedCategories = values;
+        await SelectedCategoryChanged.InvokeAsync(SelectedCategories.ToList());
+    }
+
+    private async Task SelectCategoryValues(string value)
+    {
+        if (value == "Fixed")
+        {
+            if (SelectedCategories != null)
+            {
+                SelectedCategory = SelectedCategories.ToList();
+                if (SelectedCategories.Count > 0)
+                {
+                    await SelectedCategoryChanged.InvokeAsync(SelectedCategories.ToList());
+                }
+            }
+        }
+        else if (value == "Custom")
+        {
+            SelectedCategory = null;
+            SelectedCategories = null;
+            await SelectedCategoryChanged.InvokeAsync(null);
+        }
+    }
+}

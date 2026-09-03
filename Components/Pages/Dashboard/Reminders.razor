@@ -1,0 +1,210 @@
+@inject ReminderService ReminderService
+<MudPaper Elevation="3"
+          Class="rounded-xl overflow-hidden"
+          Style="border: 1px solid var(--mud-palette-table-lines);">
+
+    <MudStack Row="true"
+              AlignItems="AlignItems.Center"
+              Justify="Justify.SpaceBetween"
+              Class="px-4 py-3 border-bottom">
+
+        <MudStack Row="true"
+                  AlignItems="AlignItems.Center"
+                  Spacing="2">
+            <MudIcon Icon="@Icons.Material.Filled.Event"
+                     Color="Color.Primary"
+                     Size="Size.Medium"/>
+            <MudText Typo="Typo.subtitle1">
+                Upcoming Reminders
+            </MudText>
+            <MudChip T="string"
+                     Color="Color.Primary"
+                     Size="Size.Small"
+                     Variant="Variant.Outlined">
+                Next 7 Days
+            </MudChip>
+        </MudStack>
+
+        @* Clickable icon that goes to the full Reminders page *@
+        <MudIconButton Icon="@Icons.Material.Filled.OpenInNew"
+                       Color="Color.Warning"
+                       Size="Size.Small"
+                       Href="/reminders"
+                       Title="View all reminders"/>
+    </MudStack>
+
+    @if (upcomingReminders.Any())
+    {
+        <MudList T="Reminder"
+                 Dense="true"
+                 Class="pa-0">
+            @foreach (var (item, shenshahiDate) in upcomingReminders)
+            {
+                <MudListItem Class="px-4 py-3 border-bottom">
+                    <MudStack Row="true">
+                        <MudText Typo="Typo.caption"
+                                 Color="Color.Primary">
+                            @shenshahiDate.ToString("MMM dd") (Roj)
+                        </MudText>
+                        <MudText Typo="Typo.caption"
+                                 Color="Color.Primary">
+                            @item.Date.ToString("MMM dd") (Date)
+                        </MudText>
+                    </MudStack>
+                    <MudStack Spacing="1">
+                        @* Line 1: Name + Badge + Date *@
+                        <MudStack Row="true"
+                                  AlignItems="AlignItems.Center"
+                                  Justify="Justify.SpaceBetween">
+                            <MudText Typo="Typo.body1"
+                                     Style="font-weight: bold">
+                                @item.Name
+                            </MudText>
+
+                            <MudChip T="string"
+                                     Color="@GetChipColor(item)"
+                                     Size="Size.Small"
+                                     Variant="Variant.Text"
+                                     Class="ma-0">
+                                @GetReminderEmoji(item) @item.Type
+                            </MudChip>
+                        </MudStack>
+
+                        @* Line 2: Parsi tags *@
+                        <MudStack Row="true"
+                                  AlignItems="AlignItems.Center"
+                                  Spacing="2">
+                            <MudChip T="string"
+                                     Size="Size.Small"
+                                     Variant="Variant.Outlined"
+                                     Class="ma-0">
+                                <MudIcon Icon="@Icons.Material.Outlined.WbSunny"
+                                         Size="Size.Small"
+                                         Class="mr-1"/>
+                                Roj: @item.Roj
+                            </MudChip>
+                            <MudChip T="string"
+                                     Size="Size.Small"
+                                     Variant="Variant.Outlined"
+                                     Class="ma-0">
+                                <MudIcon Icon="@Icons.Material.Outlined.CalendarMonth"
+                                         Size="Size.Small"
+                                         Class="mr-1"/>
+                                Mah: @item.Mah
+                            </MudChip>
+                        </MudStack>
+
+                        @* Line 3: Notes *@
+                        @if (!string.IsNullOrWhiteSpace(item.Notes))
+                        {
+                            <MudText Typo="Typo.caption"
+                                     Class="mud-text-secondary"
+                                     Style="font-style: italic;">
+                                @item.Notes
+                            </MudText>
+                        }
+
+                    </MudStack>
+                </MudListItem>
+            }
+        </MudList>
+    }
+    else
+    {
+        <MudStack AlignItems="AlignItems.Start"
+                  Class="pa-6">
+            <MudIcon Icon="@Icons.Material.Outlined.EventAvailable"
+                     Size="Size.Large"
+                     Color="Color.Default"
+                     Style="opacity:0.3;"/>
+            <MudText Typo="Typo.body2"
+                     Class="mud-text-secondary">No upcoming reminders
+            </MudText>
+        </MudStack>
+    }
+
+</MudPaper>
+
+@code {
+    List<Reminder> reminders = new();
+    private List<(Reminder Reminder, DateTime ShenshahiDate)> upcomingReminders = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        reminders = await ReminderService.GetAllRemindersAsync();
+
+        var calendar = new ShenshahiCalendar();
+        int currentYear = DateTime.Now.Year;
+        DateTime today = DateTime.Today;
+        DateTime nextWeek = today.AddDays(7);
+
+        upcomingReminders = reminders
+            .Select(item =>
+            {
+                // Calculate upcoming Shenshahi date for the current year
+                DateTime targetDate = calendar.GetDateFromRojMah(item.Mah, item.Roj, currentYear);
+
+                // If the date has already passed this year, wrap to next year
+                if (targetDate.Date < today)
+                {
+                    targetDate = calendar.GetDateFromRojMah(item.Mah, item.Roj, currentYear + 1);
+                }
+
+                return (Reminder: item, ShenshahiDate: targetDate);
+            })
+            .Where(x => x.ShenshahiDate.Date >= today && x.ShenshahiDate.Date <= nextWeek)
+            .OrderBy(x => x.ShenshahiDate)
+            .ToList();
+    }
+
+    private Color GetChipColor(Reminder reminder)
+    {
+        if (reminder.Type == Reminder.ReminderType.Consecration)
+        {
+            return Color.Warning;
+        }
+
+        if (reminder.Type == Reminder.ReminderType.Birthday)
+        {
+            bool isDeceased = reminders.Any(r =>
+                r.Type == Reminder.ReminderType.Death &&
+                string.Equals(r.Name?.Trim(), reminder.Name?.Trim(), StringComparison.OrdinalIgnoreCase));
+
+            // Return Dark or Surface color if deceased, otherwise keep Success (Green)
+            return isDeceased ? Color.Surface : Color.Success;
+        }
+
+        return reminder.Type switch
+        {
+            Reminder.ReminderType.Anniversary => Color.Secondary,
+            Reminder.ReminderType.Death => Color.Dark,
+            _ => Color.Default
+        };
+    }
+
+    private string GetReminderEmoji(Reminder reminder)
+    {
+        if (reminder.Type == Reminder.ReminderType.Consecration)
+        {
+            return "🔥";
+        }
+
+        if (reminder.Type == Reminder.ReminderType.Birthday)
+        {
+            // Check if there is a Death record for the same person
+            bool isDeceased = reminders.Any(r =>
+                r.Type == Reminder.ReminderType.Death &&
+                string.Equals(r.Name?.Trim(), reminder.Name?.Trim(), StringComparison.OrdinalIgnoreCase));
+
+            return isDeceased ? "🕯" : "🎂";
+        }
+
+        return reminder.Type switch
+        {
+            Reminder.ReminderType.Anniversary => "❤️",
+            Reminder.ReminderType.Death => "🕊️",
+            _ => "📌"
+        };
+    }
+
+}

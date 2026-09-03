@@ -1,0 +1,321 @@
+﻿@page "/view-settings"
+@using System.Reflection
+@using static NevApps.Models.Settings
+
+<MudContainer Class="pa-2 pb-4">
+    <MudStack Row="true"
+              AlignItems="AlignItems.Center"
+              Spacing="2">
+        <MudIcon Icon="@Icons.Material.Filled.SettingsSuggest"
+                 Size="Size.Large"
+                 Color="Color.Primary"/>
+        <MudText Typo="Typo.h5"
+                 Color="Color.Primary"
+                 GutterBottom="false">
+            Settings
+        </MudText>
+    </MudStack>
+    <MudText Typo="Typo.subtitle1"
+             Style="font-style: italic; opacity: 0.85; letter-spacing: 0.3px;"
+             Class="ml-2 mt-1">
+        Customize your app preferences
+    </MudText>
+</MudContainer>
+
+<MudExpansionPanels Class="mx-2"
+                    Elevation="2"
+                    Square="true"
+                    Outlined="true">
+    <MudExpansionPanel Text="Apps Selection"
+                       Class="mb-4 rounded-lg"
+                       Style="border-left: 6px solid var(--mud-palette-error); font-weight:bold;
+        background-color: var(--mud-palette-surface);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
+        <AppSelection ExpenseEnabled="OnExpenseChanged"
+                      MileageEnabled="OnMileageChanged"
+                      ShenshaiEnabled="OnShenshaiChanged"
+                      StepsEnabled="OnStepChanged"/>
+    </MudExpansionPanel>
+
+    <MudExpansionPanel Text="Country Selection"
+                       Class="mb-4 rounded-lg"
+                       Style="border-left: 6px solid var(--mud-palette-info); font-weight:bold;
+        background-color: var(--mud-palette-surface);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
+        <CountrySelection IsEditMode="@isEditMode"
+                          SelectedCountry="selectedCountry"
+                          SelectedCountryChanged="@OnCountryChanged"/>
+    </MudExpansionPanel>
+    <MudExpansionPanel Text="Vehicle Selection"
+                       Class="mb-4 rounded-lg"
+                       Style="border-left: 6px solid var(--mud-palette-success); font-weight:bold;
+        background-color: var(--mud-palette-surface);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
+        <VehicleSelection IsEditMode="@isEditMode"
+                          IsHome="@isHome"
+                          Vehicles="@vehicles"
+                          VehicleAdded="OnVehicleAdded"
+                          VehicleStartLocation="OnStartLocationChanged"/>
+    </MudExpansionPanel>
+    <MudExpansionPanel Text="Category Selection"
+                       Class="mb-4 rounded-lg"
+                       Style="border-left: 6px solid var(--mud-palette-warning); font-weight:bold;
+        background-color: var(--mud-palette-surface);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
+        <MudText Class="mx-4"
+                 Typo="Typo.subtitle2">For Expense tracking
+        </MudText>
+        <CategorySelection SelectedCategory="categories"
+                           SelectedCategoryChanged="OnCategoryChanged"/>
+    </MudExpansionPanel>
+    <MudExpansionPanel Text="Backup-Restore-Clear"
+                       Class="mb-4 rounded-lg"
+                       Style="border-left: 6px solid var(--mud-palette-primary); font-weight:bold;
+        background-color: var(--mud-palette-surface);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
+        <DB/>
+    </MudExpansionPanel>
+</MudExpansionPanels>
+<MudStack Class="py-3">
+    <MudButton OnClick="OnSubmit"
+               Color="Color.Primary"
+               Size="Size.Small"
+               Variant="Variant.Outlined"
+               IconSize="Size.Small"
+               StartIcon="@Icons.Material.Rounded.Save"
+               Disabled="selectedCountry==null && vehicles==null">
+        Save Settings
+    </MudButton>
+</MudStack>
+<div class="settings-footer">
+    <span>Version: <strong>@appVersion</strong></span>
+    <div class="spacer"></div>
+    <span>Released: <strong>@releaseDate</strong></span>
+</div>
+
+@code {
+
+    private bool isExpense = false, isMileage = false, isShenshai = false, isStep = false, isEditMode = false, isEmpty = false, isHome = false;
+    private string? appVersion, releaseDate;
+    private List<string>? vehicles, categories;
+    private Country? selectedCountry;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var Settings = await SettingsService.GetSettingsAsync();
+            isEmpty = Settings.Count == 0;
+            if (!isEmpty)
+            {
+                isExpense = Convert.ToBoolean(Settings
+                    .FirstOrDefault(x => x.SettingKey == "expensetracker")?.IsEnabled ?? 0);
+                isMileage = Convert.ToBoolean(Settings
+                    .FirstOrDefault(x => x.SettingKey == "mileagetracker")?.IsEnabled ?? 0);
+                isShenshai = Convert.ToBoolean(Settings
+                    .FirstOrDefault(x => x.SettingKey == "shenshaicalendar")?.IsEnabled ?? 0);
+                isStep = Convert.ToBoolean(Settings
+                    .FirstOrDefault(x => x.SettingKey == "stepstracker")?.IsEnabled ?? 0);
+            }
+
+            var assembly = Assembly.GetExecutingAssembly();
+            var version = assembly.GetName().Version;
+
+            if (version != null)
+            {
+                appVersion = $"{version.Major}.{version.Minor}.{version.Build}";
+                releaseDate = GetReleaseDate();
+            }
+        }
+        catch (Exception ex)
+        {
+            LoggerService.Log($"OnInitializedAsync - {this.GetType().FullName}", ex);
+            Snackbar.Add(Constants.OnLoadErrorMessage, Severity.Error);
+        }
+    }
+
+    private void OnExpenseChanged(bool value)
+    {
+        isExpense = value;
+        StateHasChanged();
+    }
+
+    private void OnMileageChanged(bool value)
+    {
+        isMileage = value;
+        StateHasChanged();
+    }
+
+    private void OnShenshaiChanged(bool value)
+    {
+        isShenshai = value;
+        StateHasChanged();
+    }
+
+    private void OnStepChanged(bool value)
+    {
+        isStep = value;
+        StateHasChanged();
+    }
+
+    private void OnCountryChanged(Country? newCountry)
+    {
+        selectedCountry = newCountry;
+        StateHasChanged();
+    }
+
+    private void OnVehicleAdded(List<string>? lst)
+    {
+        vehicles = lst;
+        StateHasChanged();
+    }
+
+    private void OnCategoryChanged(List<string>? lst)
+    {
+        categories = lst;
+        StateHasChanged();
+    }
+
+    private void OnStartLocationChanged(bool value)
+    {
+        isHome = value;
+        StateHasChanged();
+    }
+
+    private async Task OnSubmit()
+    {
+        try
+        {
+            int n = 0;
+
+            // Default to Expense Tracker if the user left every app toggle off.
+            if (isExpense == false && isMileage == false && isShenshai == false && isStep == false)
+            {
+                isExpense = true;
+            }
+
+            if (categories == null)
+                categories = new List<string> { "" };
+
+            if (selectedCountry == null || selectedCountry.Code == "")
+            {
+                var confirm = await DialogService.ShowMessageBoxAsync("Confirm", "No country entered. You will not be able to use the Expense-Tracker feature. Continue?", yesText: "Yes", cancelText: "No");
+
+                if (confirm != true) return;
+
+                selectedCountry = new()
+                {
+                    Code = "",
+                    Continent = "",
+                    CurrencyCode = "",
+                    CurrencySymbol = "",
+                    Name = "NA"
+                };
+            }
+
+            if (vehicles == null || vehicles.Count == 0)
+            {
+                var confirm = await DialogService.ShowMessageBoxAsync("Confirm", "No vehicle entered. You will not be able to use the Mileage-Tracker feature. Continue?", yesText: "Yes", cancelText: "No");
+
+                if (confirm != true) return;
+
+                vehicles = new() { "NA" };
+            }
+
+            if (vehicles != null && vehicles.Count > 0 && selectedCountry != null) //vehicles = 'NA' if none selected
+            {
+                var settings = new List<Setting>();
+                settings.Add(new Setting { SettingKey = "expensetracker", SettingValue = "", IsEnabled = isExpense ? 1 : 0 });
+                settings.Add(new Setting { SettingKey = "mileagetracker", SettingValue = "", IsEnabled = isMileage ? 1 : 0 });
+                settings.Add(new Setting { SettingKey = "shenshaicalendar", SettingValue = "", IsEnabled = isShenshai ? 1 : 0 });
+                settings.Add(new Setting { SettingKey = "stepstracker", SettingValue = "", IsEnabled = isStep ? 1 : 0 });
+                settings.Add(new Setting { SettingKey = "country", SettingValue = selectedCountry.Name, IsEnabled = 1 });
+                settings.Add(new Setting { SettingKey = "currency", SettingValue = selectedCountry.CurrencyCode, IsEnabled = 1 });
+                settings.Add(new Setting { SettingKey = "category", SettingValue = string.Join(',', categories), IsEnabled = 1 });
+
+                foreach (var v in vehicles)
+                {
+                    if (v != "NA" && vehicles.Count > 0)
+                        settings.Add(new Setting { SettingKey = "vehicle", SettingValue = v, IsEnabled = 1 });
+                }
+
+                settings.Add(new Setting { SettingKey = "startlocation", SettingValue = isHome ? "Home" : "", IsEnabled = 1 });
+
+                n = await SettingsService.SaveSettingsAsync(settings.ToArray());
+            }
+
+            if (n > 0)
+            {
+                Snackbar.Add("Settings updated.", Severity.Success);
+                NavigationManager.NavigateTo(NavigationManager.Uri, forceLoad: true);
+            }
+            else
+            {
+                Snackbar.Add("Failed to save.", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            LoggerService.Log($"OnSubmit - {this.GetType().FullName}", ex);
+            Snackbar.Add(Constants.OnLoadErrorMessage, Severity.Error);
+        }
+    }
+
+    public static string GetReleaseDate()
+    {
+#if ANDROID
+        try
+        {
+            // Get context safely (works in MAUI pages/activities)
+            var context = Platform.CurrentActivity ?? global::Android.App.Application.Context;
+            if (context == null) return "Unknown";
+
+            var packageManager = context.PackageManager;
+            if (packageManager == null) return "Unknown";
+
+            var packageName = context.PackageName;
+            if (string.IsNullOrEmpty(packageName)) return "Unknown";
+
+            var packageInfo = packageManager.GetPackageInfo(packageName!, 0);
+
+            if (packageInfo != null)
+            {
+                // LastUpdateTime is milliseconds since Unix epoch
+                // This is updated on install/update from Play or sideload
+                long timestampMs = packageInfo.LastUpdateTime;
+
+                var buildDateUtc = DateTimeOffset.FromUnixTimeMilliseconds(timestampMs).UtcDateTime;
+                var localDate = buildDateUtc.ToLocalTime();
+
+                return localDate.ToString("yyyy-MM-dd");
+            }
+        }
+        catch
+        {
+            // Fallback on error (permissions rare for own package, but safe)
+        }
+#elif IOS
+        try
+        {
+        // On iOS, find the path to the app's main Info.plist configuration file
+        var bundlePath = Foundation.NSBundle.MainBundle.BundlePath;
+        var plistPath = Path.Combine(bundlePath, "Info.plist");
+
+        if (File.Exists(plistPath))
+        {
+        // Fetch the physical file creation/modification time set during installation
+        DateTime modificationDate = File.GetLastWriteTime(plistPath);
+        return modificationDate.ToString("yyyy-MM-dd");
+        }
+        }
+        catch
+        {
+        // Fallback to generic handling on failure
+        }
+#endif
+
+        // Non-Android platforms or fallback
+        return "Unknown";
+    }
+
+}

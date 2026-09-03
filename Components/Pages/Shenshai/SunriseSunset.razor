@@ -1,0 +1,202 @@
+﻿@page "/sunrisesunset"
+@if (isLoading)
+{
+}
+else
+{
+    <MudStack AlignItems="AlignItems.Center"
+              Justify="Justify.Center">
+        <MudText Typo="Typo.caption"
+                 Style="font-weight:bold">@Locality</MudText>
+        <MudStack Row>
+            <MudText>
+                <MudIcon Icon="@Icons.Material.Rounded.WbSunny"
+                         Style="@($"color:{Colors.Yellow.Accent4}")"/>
+            </MudText>
+            <MudText Typo="Typo.caption">@Sunrise</MudText>
+        </MudStack>
+        <MudStack Row>
+            <MudText Style="font-size: 1.1rem; line-height: 1;">
+                @CurrentMoonEmoji
+            </MudText>
+            <MudText Typo="Typo.caption">@Sunset</MudText>
+        </MudStack>
+    </MudStack>
+}
+
+@code {
+    
+    [Parameter] public string CurrentMoonEmoji { get; set; } = "";
+    bool isLoading = false;
+    private CancellationTokenSource? _cancellationToken;
+    private string city = "", sunrise = "", sunset = "";
+
+    public string Locality
+    {
+        get => city;
+        set
+        {
+            if (city != value)
+            {
+                city = value;
+            }
+        }
+    }
+
+    public string Sunrise
+    {
+        get => sunrise;
+        set
+        {
+            if (sunrise != value)
+            {
+                sunrise = value;
+            }
+        }
+    }
+
+    public string Sunset
+    {
+        get => sunset;
+        set
+        {
+            if (sunset != value)
+            {
+                sunset = value;
+            }
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            isLoading = true;
+            bool isValid = await CheckPermission();
+            if (isValid)
+            {
+                (sunrise, sunset, city) = await GetSunriseSunset();
+            }
+
+            isLoading = false;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            LoggerService.Log($"OnInitializedAsync - {this.GetType().FullName}", ex);
+        }
+    }
+
+    private async Task<bool> CheckPermission()
+    {
+        var status = await Permissions.CheckStatusAsync<Permissions.LocationWhenInUse>();
+        if (status != PermissionStatus.Granted)
+        {
+            status = await Permissions.RequestAsync<Permissions.LocationWhenInUse>();
+            if (status != PermissionStatus.Granted)
+            {
+                await DialogService.ShowMessageBoxAsync("Error", "Location access is required for sunrise/sunset data.", "OK");
+            }
+        }
+        return status == PermissionStatus.Granted;
+    }
+    
+    private async Task<(string sunrise, string sunset, string city)> GetSunriseSunset()
+    {
+        var cachedData = StateService.GetSunData();
+
+        if (!cachedData.NeedsRefresh && !string.IsNullOrEmpty(cachedData.Sunrise))
+        {
+            return (cachedData.Sunrise, cachedData.Sunset, cachedData.City);
+        }
+
+        try
+        {
+            var (newSunrise, newSunset, newCity) = await CallSunriseSunsetApi();
+            StateService.SetSunData(newSunrise, newSunset, newCity);
+            return (newSunrise, newSunset, newCity);
+        }
+        catch (Exception)
+        {
+            return (cachedData.Sunrise, cachedData.Sunset, cachedData.City);
+        }
+    }
+
+    private async Task<(string sunrise, string sunset, string city)> CallSunriseSunsetApi()
+    {
+        string sunrise = "", sunset = "", city = "";
+
+        GeolocationRequest request = new(GeolocationAccuracy.Medium, TimeSpan.FromSeconds(10));
+        using (_cancellationToken = new())
+        {
+            if (request != null)
+            {
+                Location? myLocation = null;
+                try
+                {
+                    myLocation = await Geolocation.GetLocationAsync(request, _cancellationToken.Token);
+                }
+                catch (PermissionException ex)
+                {
+                    await DialogService.ShowMessageBoxAsync("Error", ex.Message, "OK");
+                }
+                catch (FeatureNotEnabledException ex)
+                {
+                    await DialogService.ShowMessageBoxAsync("Error", "Feature not enabled - " + ex.Message, "OK");
+                }
+                catch (Exception ex)
+                {
+                    await DialogService.ShowMessageBoxAsync("Error", "Geolocation error - " + ex.Message, "OK");
+                }
+
+                using (var httpClient = new HttpClient())
+                {
+                    if (myLocation != null)
+                    {
+                        IEnumerable<Placemark> placemarks = await Geocoding.Default.GetPlacemarksAsync(myLocation.Latitude, myLocation.Longitude);
+
+                        Placemark? placemark = placemarks?.FirstOrDefault();
+                        city = placemark?.Locality ?? "";
+
+                        var requestUri = "https://api.sunrise-sunset.org/json?lat=" + myLocation.Latitude + "&lng=" + myLocation.Longitude + "&tzid=" + TimeZoneInfo.Local.Id; //&tzid=America/Toronto
+                        var response = await httpClient.GetAsync(requestUri);
+
+                        if (response != null)
+                        {
+                            var json = await response.Content.ReadAsStringAsync();
+
+                            if (!string.IsNullOrEmpty(json) && !json.Contains("Exception") && !json.Contains("error"))
+                            {
+                                NevApps.Models.SunriseSunset? sunriseSunsetObj = JsonSerializer.Deserialize<NevApps.Models.SunriseSunset>(json);
+
+                                if (sunriseSunsetObj?.results != null)
+                                {
+                                    if (DateTime.TryParse(sunriseSunsetObj.results.sunrise, CultureInfo.InvariantCulture, DateTimeStyles.None, out var sunriseLocal))
+                                    {
+                                        sunrise = sunriseLocal.ToShortTimeString();
+                                    }
+                                    else
+                                    {
+                                        sunrise = "N/A";
+                                    }
+
+                                    if (DateTime.TryParse(sunriseSunsetObj.results.sunset, CultureInfo.InvariantCulture, DateTimeStyles.None, out var sunsetLocal))
+                                    {
+                                        sunset = sunsetLocal.ToShortTimeString();
+                                    }
+                                    else
+                                    {
+                                        sunset = "N/A";
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return (sunrise, sunset, city);
+    }
+
+}

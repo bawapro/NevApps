@@ -1,0 +1,536 @@
+@page "/reminders"
+@inject ReminderService ReminderService
+
+<MudContainer MaxWidth="MaxWidth.Medium"
+              Class="mt-4 pb-8">
+    <MudText Typo="Typo.h5"
+             Class="mb-1"
+             Color="Color.Primary"
+             Style="font-weight: 600;">
+        Manage Reminders
+    </MudText>
+    <MudText Typo="Typo.body2"
+             Color="Color.Secondary"
+             Class="mb-5">
+        Reminders use Roj-Mah dates. If an event occurred between midnight & sunrise, use previous date.
+    </MudText>
+</MudContainer>
+
+<MudExpansionPanels Class="mx-2"
+                    Elevation="2"
+                    Square="true"
+                    Outlined="true">
+    <MudExpansionPanel @bind-Expanded="isFormExpanded"
+                       Text="@(isEditing ? "Edit Reminder" : "Add New Reminder")"
+                       Icon="@(isEditing ? Icons.Material.Filled.Edit : Icons.Material.Filled.Add)"
+                       Dense="true"
+                       Class="mb-4 rounded-lg"
+                       Style="border-left: 6px solid var(--mud-palette-success); font-weight:bold;
+            background-color: var(--mud-palette-surface);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
+        <MudForm @ref="form"
+                 @bind-IsValid="isValid">
+            <MudGrid>
+                <MudItem xs="12"
+                         sm="6">
+                    <MudTextField
+                        @bind-Value="newReminder.Name"
+                        Sizing="InputSizing.Auto"
+                        Label="Name"
+                        Class="small-placeholder"
+                        Required="true"
+                        RequiredError="Name is required"
+                        Variant="Variant.Outlined"
+                        Margin="Margin.Dense"/>
+                </MudItem>
+
+                <MudItem xs="6"
+                         sm="6">
+                    <MudSelect T="Reminder.ReminderType"
+                               @bind-Value="newReminder.Type"
+                               Label="Type"
+                               Required="true"
+                               Variant="Variant.Outlined"
+                               Margin="Margin.Dense">
+                        @foreach (Reminder.ReminderType type in Enum.GetValues(typeof(Reminder.ReminderType)))
+                        {
+                            <MudSelectItem Value="@type">
+                                @(type == Reminder.ReminderType.Death ? $"{type} (Baj)" : type.ToString())
+                            </MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+
+                <MudItem xs="6"
+                         sm="6">
+                    <MudTextField T="string"
+                                  Label="Date"
+                                  Class="small-placeholder"
+                                  @bind-Value="dateInputString"
+                                  OnBlur="OnDateInputBlur"
+                                  Validation="@(new Func<string, string?>(ValidateDateInput))"
+                                  Immediate="true"
+                                  Placeholder="YYYY-MM-DD"
+                                  MaxLength="10"
+                                  Required="true"
+                                  RequiredError="Date is required"
+                                  Variant="Variant.Outlined"
+                                  Margin="Margin.Dense"/>
+                </MudItem>
+
+                <MudItem xs="12"
+                         sm="6">
+                    <MudTextField @bind-Value="newReminder.Notes"
+                                  Label="Notes (Optional)"
+                                  Variant="Variant.Outlined"
+                                  Margin="Margin.Dense"/>
+                </MudItem>
+                <MudItem>
+                    <MudStack Row="true"
+                              Class="py-2">
+                        @if (isEditing)
+                        {
+                            <MudButton Variant="Variant.Outlined"
+                                       Color="Color.Secondary"
+                                       Size="Size.Small"
+                                       IconSize="Size.Small"
+                                       StartIcon="@Icons.Material.Rounded.Cancel"
+                                       OnClick="CancelEdit">
+                                Cancel
+                            </MudButton>
+                        }
+                        <MudButton OnClick="SaveReminder"
+                                   Color="Color.Primary"
+                                   Size="Size.Small"
+                                   Variant="Variant.Outlined"
+                                   IconSize="Size.Small"
+                                   StartIcon="@Icons.Material.Rounded.Save">
+                            @(isEditing ? "Update" : "Save")
+                        </MudButton>
+                    </MudStack>
+                </MudItem>
+            </MudGrid>
+        </MudForm>
+    </MudExpansionPanel>
+    <MudExpansionPanel @bind-Expanded="isTableExpanded"
+                       Text="View Reminders"
+                       Dense="true"
+                       Class="mb-4 rounded-lg"
+                       Style="border-left: 6px solid var(--mud-palette-info); font-weight:bold;
+            background-color: var(--mud-palette-surface);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
+        <MudDataGrid T="Reminder"
+                     Items="reminders"
+                     Dense="true"
+                     Hover="true"
+                     Elevation="1"
+                     RowsPerPage="5">
+            <Columns>
+                @* ── Status Accent Bar & Date ── *@
+                <PropertyColumn Property="x => x.Date"
+                                Title="Date"
+                                Sortable="true">
+                    <CellTemplate>
+                        <div class="d-flex align-center gap-2">
+                            <div class="status-indicator"
+                                 style="background-color: var(--mud-palette-@GetChipColor(context.Item).ToString().ToLower());"></div>
+                            <MudText Typo="Typo.body2"
+                                     Class="fw-bold"
+                                     Color="Color.Primary">
+                                @context.Item.Date.ToString("MMM dd, yyyy")
+                            </MudText>
+                        </div>
+                    </CellTemplate>
+                </PropertyColumn>
+
+                @* ── Name ── *@
+                <PropertyColumn Property="x => x.Name"
+                                Title="Name"
+                                Sortable="true">
+                    <CellTemplate>
+                        <MudText Typo="Typo.body2"
+                                 Class="fw-bold text-dark">
+                            @context.Item.Name
+                        </MudText>
+                    </CellTemplate>
+                </PropertyColumn>
+
+                @* ── Type Badge ── *@
+                <PropertyColumn Property="x => x.Type"
+                                Title="Type"
+                                Sortable="true">
+                    <CellTemplate>
+                        <MudChip T="string"
+                                 Color="@GetChipColor(context.Item)"
+                                 Size="Size.Small"
+                                 Variant="Variant.Text"
+                                 Class="chip-type fw-semibold ma-0">
+                            <span class="mr-1">@GetReminderEmoji(context.Item)</span> @context.Item.Type
+                        </MudChip>
+                    </CellTemplate>
+                </PropertyColumn>
+
+                @* ── Roj & Mah Chips ── *@
+                <TemplateColumn>
+                    <CellTemplate>
+                        <div class="d-inline-flex gap-1">
+                            <span class="parsi-badge">
+                                <MudIcon Icon="@Icons.Material.Outlined.WbSunny"
+                                         Size="Size.Small"
+                                         Class="amber-text"/>
+                                <strong>Roj:</strong> @context.Item.Roj
+                            </span>
+                            <span class="parsi-badge">
+                                <MudIcon Icon="@Icons.Material.Outlined.CalendarMonth"
+                                         Size="Size.Small"
+                                         Class="blue-text"/>
+                                <strong>Mah:</strong> @context.Item.Mah
+                            </span>
+                        </div>
+                    </CellTemplate>
+                </TemplateColumn>
+
+                @* ── Notes ── *@
+                <PropertyColumn Property="x => x.Notes"
+                                Title="Notes">
+                    <CellTemplate>
+                        @if (!string.IsNullOrWhiteSpace(context.Item.Notes))
+                        {
+                            <MudTooltip Text="@context.Item.Notes"
+                                        Placement="Placement.Top">
+                                <MudText Typo="Typo.caption"
+                                         Class="text-truncate mud-text-secondary d-inline-block"
+                                         Style="max-width: 180px; font-style: italic;">
+                                    @context.Item.Notes
+                                </MudText>
+                            </MudTooltip>
+                        }
+                        else
+                        {
+                            <MudText Typo="Typo.caption"
+                                     Style="opacity: 0.3;">—
+                            </MudText>
+                        }
+                    </CellTemplate>
+                </PropertyColumn>
+
+                @* ── Actions ── *@
+                <TemplateColumn
+                    CellClass="d-flex justify-end">
+                    <CellTemplate>
+                        <MudStack Row="true"
+                                  Spacing="0"
+                                  Class="action-group">
+                            <MudIconButton Icon="@Icons.Material.Outlined.Edit"
+                                           Size="Size.Small"
+                                           Color="Color.Primary"
+                                           Class="action-btn"
+                                           OnClick="@(() => EditReminder(context.Item))"/>
+                            <MudIconButton Icon="@Icons.Material.Outlined.Delete"
+                                           Size="Size.Small"
+                                           Color="Color.Error"
+                                           Class="action-btn"
+                                           OnClick="@(() => DeleteReminder(context.Item))"/>
+                        </MudStack>
+                    </CellTemplate>
+                </TemplateColumn>
+            </Columns>
+            <PagerContent>
+                @if (reminders.Count > 5)
+                {
+                    <MudDataGridPager T="Reminder"
+                                      PageSizeOptions="new int[] { 5, 10, 25, 50 }"/>
+                }
+            </PagerContent>
+        </MudDataGrid>
+    </MudExpansionPanel>
+</MudExpansionPanels>
+
+@code {
+    private bool isValid, isEditing = false, isGatha = false, isFormExpanded = true, isTableExpanded = false;
+    private string roj = "", mah = "";
+    private Reminder newReminder = new();
+    private MudForm form = default!;
+    private List<Reminder> reminders = new();
+
+    private DateTime? selectedDate
+    {
+        get => newReminder.Date == default
+            ? null
+            : new DateTime(newReminder.Date.Year, newReminder.Date.Month, newReminder.Date.Day);
+        set
+        {
+            if (value.HasValue)
+            {
+                newReminder.Date = DateOnly.FromDateTime(value.Value);
+                var calendar = new ShenshahiCalendar();
+                (roj, mah, isGatha) = calendar.GetRojAndMah(selectedDate.Value);
+                newReminder.Roj = roj;
+                newReminder.Mah = mah;
+            }
+        }
+    }
+
+    private string? ValidateDateInput(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return "Date is required";
+
+        bool isValidDate = DateTime.TryParseExact(value, "yyyy-MM-dd",
+            CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed);
+
+        if (isValidDate)
+        {
+            selectedDate = parsed;
+            return null; // Valid! MudForm sets isValid = true
+        }
+
+        selectedDate = null;
+        return "Invalid date format (YYYY-MM-DD)."; // Invalid! MudForm sets isValid = false
+    }
+
+    private async Task OnDateInputBlur()
+    {
+        if (!string.IsNullOrWhiteSpace(dateInputString) && ValidateDateInput(dateInputString) != null)
+        {
+            await DialogService.ShowMessageBoxAsync("Error", "Please enter date in correct format (YYYY-MM-DD) Eg. 1999-01-01", "OK");
+        }
+
+        if (string.IsNullOrWhiteSpace(dateInputString))
+        {
+            selectedDate = null;
+            return;
+        }
+
+        // Clean the input
+        string digits = System.Text.RegularExpressions.Regex.Replace(dateInputString, @"[^\d]", "");
+
+        if (digits.Length > 8)
+            digits = digits.Substring(0, 8);
+
+        // Auto-format to YYYY-MM-DD
+        if (digits.Length >= 8)
+        {
+            dateInputString = $"{digits.Substring(0, 4)}-{digits.Substring(4, 2)}-{digits.Substring(6, 2)}";
+        }
+        else if (digits.Length >= 6)
+        {
+            dateInputString = $"{digits.Substring(0, 4)}-{digits.Substring(4, 2)}-{digits.Substring(6)}";
+        }
+        else if (digits.Length >= 4)
+        {
+            dateInputString = $"{digits.Substring(0, 4)}-{digits.Substring(4)}";
+        }
+        else
+        {
+            dateInputString = digits;
+        }
+
+        // Try to parse
+        if (DateTime.TryParseExact(dateInputString, "yyyy-MM-dd",
+                System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.None,
+                out var parsedDate))
+        {
+            selectedDate = parsedDate;
+            newReminder.Date = DateOnly.FromDateTime(parsedDate);
+        }
+        else
+        {
+            selectedDate = null;
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadReminders();
+        }
+        catch (Exception ex)
+        {
+            LoggerService.Log($"OnInitializedAsync - {this.GetType().FullName}", ex);
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task LoadReminders()
+    {
+        reminders = await ReminderService.GetAllRemindersAsync();
+    }
+
+    private string dateInputString = string.Empty;
+
+    private void OnDateInputStringChanged(string value)
+    {
+        // Strip out any non-numeric characters
+        string digits = System.Text.RegularExpressions.Regex.Replace(value ?? "", @"[^\d]", "");
+
+        if (digits.Length > 8)
+            digits = digits.Substring(0, 8);
+
+        // Auto-insert hyphens cleanly as digits are typed
+        if (digits.Length > 4)
+        {
+            string year = digits.Substring(0, 4);
+            if (digits.Length > 6)
+            {
+                string month = digits.Substring(4, 2);
+                string day = digits.Substring(6);
+                dateInputString = $"{year}-{month}-{day}";
+            }
+            else
+            {
+                string month = digits.Substring(4);
+                dateInputString = $"{year}-{month}";
+            }
+        }
+        else
+        {
+            dateInputString = digits;
+        }
+
+        // Validate the YYYY-MM-DD format
+        if (dateInputString.Length == 10 &&
+            DateTime.TryParseExact(dateInputString, "yyyy-MM-dd",
+                System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.None,
+                out var parsedDate))
+        {
+            selectedDate = parsedDate;
+        }
+        else
+        {
+            selectedDate = null;
+        }
+    }
+
+    private async Task SaveReminder()
+    {
+        try
+        {
+            await form.Validate();
+            if (!isValid) return;
+
+            if (isEditing)
+            {
+                await ReminderService.UpdateReminderAsync(newReminder);
+                Snackbar.Add("Entry updated successfully!", Severity.Success);
+            }
+            else
+            {
+                await ReminderService.AddReminderAsync(newReminder);
+                Snackbar.Add("Entry added successfully!", Severity.Success);
+            }
+
+            await ResetForm();
+            await LoadReminders();
+        }
+        catch (Exception ex)
+        {
+            LoggerService.Log($"SaveReminder - {this.GetType().FullName}", ex);
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private void EditReminder(Reminder reminder)
+    {
+        isEditing = true;
+        newReminder = new Reminder
+        {
+            Id = reminder.Id,
+            Name = reminder.Name,
+            Type = reminder.Type,
+            Date = reminder.Date,
+            Notes = reminder.Notes,
+            Roj = roj,
+            Mah = mah
+        };
+        selectedDate = new DateTime(reminder.Date.Year, reminder.Date.Month, reminder.Date.Day);
+        dateInputString = selectedDate.Value.ToString("yyyy-MM-dd");
+        isFormExpanded = true;
+        isTableExpanded = false;
+        StateHasChanged();
+    }
+
+    private async Task DeleteReminder(Reminder reminder)
+    {
+        bool? result = await DialogService.ShowMessageBoxAsync("Confirm Delete", "Are you sure you want to delete this record? This action cannot be undone.", yesText: "Yes", cancelText: "Cancel");
+
+        if (result == true)
+        {
+            await ReminderService.DeleteReminderAsync(reminder.Id);
+            Snackbar.Add("Entry deleted", Severity.Info);
+            await LoadReminders();
+        }
+    }
+
+    private async Task CancelEdit()
+    {
+        isFormExpanded = false;
+        isTableExpanded = true;
+        await ResetForm();
+    }
+
+    private async Task ResetForm()
+    {
+        isEditing = false;
+        newReminder = new Reminder();
+        selectedDate = null;
+        if (form != null)
+        {
+            await form.ResetAsync();
+        }
+    }
+
+    private Color GetChipColor(Reminder reminder)
+    {
+        if (reminder.Type == Reminder.ReminderType.Consecration)
+        {
+            return Color.Warning;
+        }
+
+        if (reminder.Type == Reminder.ReminderType.Birthday)
+        {
+            bool isDeceased = reminders.Any(r =>
+                r.Type == Reminder.ReminderType.Death &&
+                string.Equals(r.Name?.Trim(), reminder.Name?.Trim(), StringComparison.OrdinalIgnoreCase));
+
+            // Return Dark or Surface color if deceased, otherwise keep Success (Green)
+            return isDeceased ? Color.Surface : Color.Success;
+        }
+
+        return reminder.Type switch
+        {
+            Reminder.ReminderType.Anniversary => Color.Secondary,
+            Reminder.ReminderType.Death => Color.Dark,
+            _ => Color.Default
+        };
+    }
+
+    private string GetReminderEmoji(Reminder reminder)
+    {
+        if (reminder.Type == Reminder.ReminderType.Consecration)
+        {
+            return "🔥";
+        }
+
+        if (reminder.Type == Reminder.ReminderType.Birthday)
+        {
+            // Check if there is a Death record for the same person
+            bool isDeceased = reminders.Any(r =>
+                r.Type == Reminder.ReminderType.Death &&
+                string.Equals(r.Name?.Trim(), reminder.Name?.Trim(), StringComparison.OrdinalIgnoreCase));
+
+            return isDeceased ? "🕯" : "🎂";
+        }
+
+        return reminder.Type switch
+        {
+            Reminder.ReminderType.Anniversary => "❤️",
+            Reminder.ReminderType.Death => "🕊️",
+            _ => "📌"
+        };
+    }
+
+}

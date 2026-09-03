@@ -1,0 +1,228 @@
+﻿@page "/expense-tracker/edit/{Id:int}"
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.subtitle1" Color="Color.Tertiary">Edit </MudText>
+        <MudText Typo="Typo.subtitle2" Color="Color.Surface">Expense/Income Details</MudText>
+    </TitleContent>
+
+    <DialogContent>
+        <MudForm @ref="form" @bind-IsValid="@isValid">
+            <MudGrid>
+                <MudItem xs="12" sm="12" md="3">
+                    <MudTextField T="DateTime?" Format="yyyy-MM-dd" Label="Date" InputType="InputType.Date" Value="date" ValueChanged="OnDateChanged" />
+                </MudItem>
+
+                <MudItem xs="12" sm="12" md="3">
+                    <MudNumericField @bind-Value="@price" T="decimal" Label="Amount" IconSize="Size.Small" Margin="Margin.Dense"
+                                     InputMode="@(InputMode.@decimal)" Format="N2" Culture="@CultureInfo.InvariantCulture" Min="0" Max="99999"
+                                     Adornment="Adornment.Start" AdornmentColor="Color.Default" AdornmentIcon="@currencyIcon" />
+                </MudItem>
+
+                <MudItem xs="12" sm="12" md="3">
+                    <MudAutocomplete @bind-Value="@category" T="string" Label="Category" SearchFunc="GetCategories" MaxLength="50"
+                                     IconSize="Size.Small" AdornmentIcon="@Icons.Material.Filled.Abc" Variant="Variant.Text" Margin="Margin.Dense"
+                                     CoerceText="false" CoerceValue="true" Strict="false" Dense="true" Required="true" />
+                </MudItem>
+
+                <MudItem xs="12" sm="12" md="3">
+                    <MudAutocomplete @bind-Value="@type" T="string" Label="Type" SearchFunc="GetTypes" MaxLength="50"
+                                     IconSize="Size.Small" AdornmentIcon="@Icons.Material.Filled.AutoAwesome" Variant="Variant.Text" Margin="Margin.Dense"
+                                     CoerceText="false" CoerceValue="true" Strict="false" Dense="true" Required="true" />
+                </MudItem>
+
+                <MudItem xs="12" sm="12" md="6">
+                    <MudAutocomplete @bind-Value="@place" T="string" Label="Place" SearchFunc="GetPlaces" MaxLength="50"
+                                     IconSize="Size.Small" AdornmentIcon="@Icons.Material.Filled.Bungalow" Variant="Variant.Text" Margin="Margin.Dense"
+                                     CoerceText="false" CoerceValue="true" Strict="false" Dense="true" Required="true" />
+                </MudItem>
+
+                <MudItem xs="12" sm="12" md="6">
+                    <MudAutocomplete @bind-Value="@detail" T="string" Label="Detail" SearchFunc="GetDetails" MaxLength="200"
+                                     IconSize="Size.Small" AdornmentIcon="@Icons.Material.Filled.Notes" Variant="Variant.Text" Margin="Margin.Dense"
+                                     CoerceText="false" CoerceValue="true" Strict="false" Dense="true" Required="true" />
+                </MudItem>
+
+                @if (autoPayEnabled.HasValue)
+                {
+                    <MudItem xs="12" sm="12" md="6">
+                        <MudCheckBox @bind-Value="autoPayEnabled" Label="AutoPay" Size="Size.Small" Color="Color.Secondary" Dense="true" TriState="true" />
+
+                        <MudSelect T="string" Label="Frequency" Value="frequency" ValueChanged="OnAutoPayDateChanged" Disabled="!autoPayEnabled.HasValue"
+                                   IconSize="Size.Small" AdornmentIcon="@Icons.Material.Filled.CalendarMonth" Dense="true" Margin="Margin.Dense">
+                            @foreach (var kvp in Constants.AutoPay.Frequencies)
+                            {
+                                <MudSelectItem Value="@kvp.Key">@kvp.Value</MudSelectItem>
+                            }
+                        </MudSelect>
+
+                        <MudDatePicker @bind-Date="autoPayDate" Label="AutoPay Date" DateFormat="yyyy-MM-dd" />
+
+                    </MudItem>
+                }
+
+                @if (tripEnabled.HasValue)
+                {
+                    <MudItem xs="12" sm="12" md="6">
+                        <MudCheckBox @bind-Value="tripEnabled" Label="Trip Enabled" Size="Size.Small" Color="Color.Secondary" Dense="true" TriState="true" />
+
+                        <MudAutocomplete @bind-Value="trip" T="string" Label="Trip Destination" SearchFunc="GetTrips" MaxLength="75"
+                                         IconSize="Size.Small" AdornmentIcon="@Icons.Material.Filled.ModeOfTravel" Variant="Variant.Text" Margin="Margin.Dense"
+                                         Disabled="!tripEnabled.HasValue" Clearable="true" Dense="true" CoerceText="false" CoerceValue="true" />
+                    </MudItem>
+                }
+            </MudGrid>
+        </MudForm>
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton OnClick="OnSubmit" Color="Color.Primary" Variant="Variant.Filled">Save</MudButton>
+        <MudButton OnClick="OnCancel">Cancel</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public ExpenseTracker Expense { get; set; } = new();
+    [Parameter] public Func<Task> OnSaved { get; set; } = () => Task.CompletedTask;
+
+    bool? autoPayEnabled = false, tripEnabled = false;
+    bool isValid = true;
+    private DateTime? date, autoPayDate;
+    private string category = "", type = "", place = "", detail = "";
+    private string? frequency = "", trip = "", currencyIcon;
+    private decimal price;
+    private MudForm? form;
+
+    protected override async Task OnInitializedAsync()
+    {
+        currencyIcon = await SettingsService.GetCurrencyIcon();
+        date = Expense.Date.ToDateTime(TimeOnly.MinValue);
+        price = Expense.Price;
+        category = Expense.Category;
+        type = Expense.Type;
+        place = Expense.Place;
+        detail = Expense.Detail;
+        frequency = Expense.Frequency;
+        autoPayEnabled = Expense.AutoPay.HasValue ? Expense.AutoPay.Value == 1 ? true : false : (bool?)null;
+        autoPayDate = Expense.AutoPayDate?.ToDateTime(TimeOnly.MinValue);
+        tripEnabled = Expense.TripFlag.HasValue ? Expense.TripFlag.Value == 1 ? true : false : (bool?)null;
+        trip = Expense.TripDestination;
+
+    }
+
+    private async Task<IEnumerable<string>> GetCategories(string value, CancellationToken token)
+    {
+        return await ExpenseTrackerService.GetCategoriesAsync(value, true);
+    }
+
+    private async Task<IEnumerable<string>> GetTypes(string value, CancellationToken token)
+    {
+        if (!string.IsNullOrEmpty(value))
+        {
+            var obj = await ExpenseTrackerService.GetTypesAsync(category);
+            var types = obj.ToList();
+            return types
+                .Where(p => p.ToLowerInvariant().Contains(value, StringComparison.OrdinalIgnoreCase))
+                .OrderBy(p => p.StartsWith(value, StringComparison.OrdinalIgnoreCase) ? 0 : 1)
+                .ThenBy(p => p);
+        }
+
+        return await ExpenseTrackerService.GetTypesAsync(category);
+    }
+
+    private async Task<IEnumerable<string>> GetPlaces(string value, CancellationToken token)
+    {
+        if (!string.IsNullOrEmpty(value))
+        {
+            var obj = await ExpenseTrackerService.GetPlacesAsync(type);
+            var places = obj.ToList();
+            return places
+                .Where(p => p.ToLowerInvariant().Contains(value, StringComparison.OrdinalIgnoreCase))
+                .OrderBy(p => p.StartsWith(value, StringComparison.OrdinalIgnoreCase) ? 0 : 1)
+                .ThenBy(p => p);
+        }
+
+        return await ExpenseTrackerService.GetPlacesAsync(type);
+    }
+
+    private async Task<IEnumerable<string>> GetDetails(string value, CancellationToken token)
+    {
+        if (!string.IsNullOrEmpty(value))
+        {
+            var obj = await ExpenseTrackerService.GetDetailsAsync(value);
+            var details = obj.ToList();
+            return details.Where(p => p.ToLowerInvariant().Contains(value, StringComparison.OrdinalIgnoreCase))
+                .OrderBy(p => p.StartsWith(value, StringComparison.OrdinalIgnoreCase) ? 0 : 1)
+                .ThenBy(p => p);
+        }
+        return await ExpenseTrackerService.GetDetailsAsync(@Expense.Detail);
+    }
+
+    private async Task<IEnumerable<string?>> GetTrips(string value, CancellationToken token)
+    {
+        return await ExpenseTrackerService.GetTripsAsync(value);
+    }
+
+    private void OnDateChanged(DateTime? value)
+    {
+        date = value == null ? DateTime.Now : value;
+        UpdateAutoPayDate();
+    }
+
+    private void OnAutoPayDateChanged(string? value)
+    {
+        frequency = value;
+        UpdateAutoPayDate();
+    }
+
+    private void UpdateAutoPayDate()
+    {
+        if (!string.IsNullOrEmpty(frequency) && date.HasValue)
+            autoPayDate = ExpenseTrackerService.GetNextDate(date.Value, frequency);
+    }
+
+    private async Task OnSubmit()
+    {
+        await form!.Validate();
+
+        if (isValid == false || price < 1)
+        {
+            Snackbar.Add("Please fill in all required fields correctly.", Severity.Error);
+            return;
+        }
+
+        if (date.HasValue)
+        {
+            Expense.Date = DateOnly.FromDateTime(date.Value);
+            Expense.Price = price;
+            Expense.Category = category;
+            Expense.Type = type;
+            Expense.Place = place;
+            Expense.Detail = detail;
+            Expense.AutoPay = autoPayEnabled == null ? null : autoPayEnabled.Value == true ? 1 : 0;
+            Expense.Frequency = Expense.AutoPay == null ? null : frequency;
+            Expense.AutoPayDate = Expense.AutoPay == null ? null :  DateOnly.FromDateTime(autoPayDate.Value);
+            Expense.TripFlag = tripEnabled == null ? null : tripEnabled.Value == true ? 1 : 0;
+            Expense.TripDestination = trip;
+        }
+        try
+        {
+            await ExpenseTrackerService.UpdateExpenseAsync(Expense);
+            if (!tripEnabled.HasValue && !string.IsNullOrEmpty(trip))
+                StateService.ClearTripState();
+        }
+        catch (Exception ex)
+        {
+            await DialogService.ShowMessageBoxAsync("Error", ex.Message, "OK");
+            LoggerService.Log($"Save - {this.GetType().FullName}", ex);
+        }
+
+        await OnSaved.Invoke();
+        MudDialog.Close(DialogResult.Ok(true));
+    }
+
+    private void OnCancel() => MudDialog.Cancel();
+
+}

@@ -1,0 +1,531 @@
+@page "/steps-tracker/add"
+@using NevApps.Interfaces
+@inject IStepTrackerService StepTrackerService
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+@implements IDisposable
+<style>
+    .metric-value {
+        font-size: clamp(1.5rem, 7vw, 2.2rem); /* Auto-scales down on smaller screens, caps on big screens */
+        font-weight: 800;
+        letter-spacing: -0.05em;
+        line-height: 1.1;
+        margin-bottom: 2px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .color-primary {
+        color: var(--mud-palette-primary);
+    }
+
+    .color-secondary {
+        color: var(--mud-palette-secondary);
+    }
+
+    .status-footer-container {
+        display: flex;
+        justify-content: space-around;
+        align-items: center;
+        background-color: #1e1e1e; /* Dark theme strip */
+        padding: 8px 12px;
+        font-size: 11px;
+        font-family: monospace;
+        border-top: 1px solid #333; /* Border moves to the top now */
+
+        /* Locks it to the absolute bottom of the screen */
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        width: 100%;
+        z-index: 9999; /* Keeps it on top of other elements */
+    }
+
+    .status-item {
+        display: flex;
+        gap: 4px;
+        align-items: center;
+    }
+
+    .status-label {
+        color: #aaa;
+    }
+
+    .status-divider {
+        color: #444;
+        font-weight: bold;
+    }
+
+    .status-on {
+        color: #4caf50; /* Clean Green */
+        font-weight: bold;
+    }
+
+    .status-off {
+        color: #f44336; /* Warning Red */
+        font-weight: bold;
+    }
+</style>
+<div class="status-footer-container">
+    <div class="status-item">
+        <span class="status-label">Location:</span>
+        <span class="status-value @(isLocationAlways ? "status-on" : "status-off")">
+            @(isLocationAlways ? "ALWAYS" : "WHILE USING")
+        </span>
+    </div>
+
+    <div class="status-divider">|</div>
+
+    <div class="status-item">
+        <span class="status-label">Motion:</span>
+        <span class="status-value @(isMotionEnabled ? "status-on" : "status-off")">
+            @(isMotionEnabled ? "ON" : "OFF")
+        </span>
+    </div>
+
+    <div class="status-divider">|</div>
+
+    <div class="status-item">
+        <span class="status-label">Background:</span>
+        <span class="status-value @(isBackgroundEnabled ? "status-on" : "status-off")">
+            @(isBackgroundEnabled ? "ACTIVE" : "DISABLED")
+        </span>
+    </div>
+</div>
+<MudContainer Class="pa-1 pb-1">
+    <MudStack Row="true"
+              AlignItems="AlignItems.Center"
+              Spacing="2">
+        <MudIcon Icon="@Icons.Material.Filled.RunCircle"
+                 Size="Size.Large"
+                 Color="Color.Primary"/>
+        <MudText Typo="Typo.h5"
+                 Color="Color.Primary"
+                 GutterBottom="false">
+            Step Tracker
+        </MudText>
+    </MudStack>
+    <MudText Typo="Typo.subtitle1"
+             Style="font-style: italic; opacity: 0.85; letter-spacing: 0.3px;"
+             Class="ml-2 mt-1">
+        Track your steps/distance traveled.
+    </MudText>
+</MudContainer>
+<MudContainer MaxWidth="MaxWidth.Small"
+              Class="mt-6 px-4">
+    <!-- Main Dashboard Card -->
+    <MudCard Elevation="6"
+             Class="pt-4 pb-6 px-5 rounded-xl border border-solid mud-border-default">
+
+        <!-- Activity Sub-Status Chip -->
+        <MudStack>
+            <MudChip T="string"
+                     Color="@(StepTrackerService.IsTracking && StepTrackerService.StatusCode == 'M' ? Color.Primary : Color.Default)"
+                     Variant="Variant.Filled"
+                     Size="Size.Small"
+                     Class="px-4 font-weight-medium">
+                Status: @(!isActive
+                                ? "Permissions Pending"
+                                : StepTrackerService.StatusCode switch
+                                {
+                                    'M' => "Moving",
+                                    'I' => "Idle",
+                                    'S' => "Stopped",
+                                    _ => "Ready"
+                                })
+            </MudChip>
+        </MudStack>
+
+        <!-- METRICS DISPLAY GRID -->
+        <MudGrid Spacing="2"
+                 Class="mb-4">
+            <!-- Steps Module Card -->
+            <MudItem xs="6">
+                <MudPaper Elevation="0"
+                          Class="pa-3 text-center rounded-lg bg-hover border border-solid mud-border-default"
+                          Style="overflow: hidden;">
+                    <MudIcon Icon="@Icons.Material.Filled.DirectionsWalk"
+                             Color="Color.Primary"
+                             Size="Size.Medium"
+                             Class="mb-1"/>
+                    <!-- Added tight tracking and responsive font sizes -->
+                    <div class="metric-value color-primary">
+                        @StepTrackerService.CurrentSteps
+                    </div>
+                    <MudText Typo="Typo.caption"
+                             Class="text-muted font-weight-bold tracking-wide uppercase">Steps
+                    </MudText>
+                </MudPaper>
+            </MudItem>
+
+            <!-- Distance Module Card -->
+            <MudItem xs="6">
+                <MudPaper Elevation="0"
+                          Class="pa-3 text-center rounded-lg bg-hover border border-solid mud-border-default"
+                          Style="overflow: hidden;">
+                    <MudIcon Icon="@Icons.Material.Filled.Route"
+                             Color="Color.Secondary"
+                             Size="Size.Medium"
+                             Class="mb-1"/>
+                    <!-- Added tight tracking and responsive font sizes -->
+                    <div class="metric-value color-secondary">
+                        @StepTrackerService.TotalDistanceKm.ToString("F2")
+                    </div>
+                    <MudText Typo="Typo.caption"
+                             Class="text-muted font-weight-bold tracking-wide uppercase">KM
+                    </MudText>
+                </MudPaper>
+            </MudItem>
+        </MudGrid>
+        <MudStack>
+            @if (StepTrackerService.IsTracking || (!string.IsNullOrEmpty(StepTrackerService.CurrentPlaceName) && StepTrackerService.CurrentPlaceName != "Locating..."))
+            {
+                <MudText Typo="Typo.subtitle2"
+                         Class="text-muted">
+                    <MudIcon Icon="@Icons.Material.Filled.LocationOn"
+                             Size="Size.Small"
+                             Class="mr-1"
+                             Style="vertical-align: bottom;"/>
+                    @StepTrackerService.CurrentPlaceName
+                </MudText>
+            }
+        </MudStack>
+        <MudDivider Class="my-5"
+                    DividerType="DividerType.Middle"/>
+
+        <!-- ACTION CONTROL ACTION BAR -->
+        <div class="px-1 d-flex gap-2">
+            @if (!StepTrackerService.IsTracking && !isPaused)
+            {
+                <!-- Stopped State: Only show Start -->
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           Size="Size.Large"
+                           StartIcon="@Icons.Material.Filled.PlayArrow"
+                           OnClick="StartSession"
+                           FullWidth="true"
+                           Class="py-3 rounded-lg font-weight-bold text-lg mud-elevation-2 hover-scale">
+                    Start Tracking
+                </MudButton>
+            }
+            else if (StepTrackerService.IsTracking && !isPaused)
+            {
+                <!-- Tracking State: Show Pause and Stop side-by-side -->
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Warning"
+                           Size="Size.Large"
+                           StartIcon="@Icons.Material.Filled.Pause"
+                           OnClick="PauseSession"
+                           Class="py-3 rounded-lg font-weight-bold text-lg flex-grow-1">
+                    Pause
+                </MudButton>
+
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Error"
+                           Size="Size.Large"
+                           StartIcon="@Icons.Material.Filled.Stop"
+                           OnClick="StopSession"
+                           Class="py-3 rounded-lg font-weight-bold text-lg flex-grow-1">
+                    Stop
+                </MudButton>
+            }
+            else if (isPaused)
+            {
+                <!-- Paused State: Change button text to Resume dynamically -->
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           Size="Size.Large"
+                           StartIcon="@Icons.Material.Filled.PlayArrow"
+                           OnClick="ResumeSession"
+                           Class="py-3 rounded-lg font-weight-bold text-lg flex-grow-1">
+                    Resume
+                </MudButton>
+
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Error"
+                           Size="Size.Large"
+                           StartIcon="@Icons.Material.Filled.Stop"
+                           OnClick="StopSession"
+                           Class="py-3 rounded-lg font-weight-bold text-lg flex-grow-1">
+                    Stop
+                </MudButton>
+            }
+        </div>
+
+        <MudStack AlignItems="AlignItems.Center"
+                  Class="my-6"
+                  Spacing="3">  <!-- Increased spacing a bit -->
+
+            <MudText Typo="Typo.h3"
+                     Color="Color.Dark"
+                     Style="font-family: monospace;
+            font-weight: 700;
+            letter-spacing: 0.08em;">
+                @GetDisplayTime()
+            </MudText>
+
+        </MudStack>
+    </MudCard>
+</MudContainer>
+
+<style>
+    /* Premium custom status element alignments */
+    .bg-success-dimmed {
+        background-color: rgba(76, 175, 80, 0.12);
+    }
+
+    .bg-error-dimmed {
+        background-color: rgba(244, 67, 54, 0.12);
+    }
+
+    .bg-hover {
+        background-color: var(--mud-palette-background-grey);
+    }
+
+    .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+    }
+
+    .bg-success {
+        background-color: var(--mud-palette-success);
+    }
+
+    .bg-error {
+        background-color: var(--mud-palette-error);
+    }
+
+    /* Gentle glowing pulse for an active native tracking thread */
+    .animate-pulse {
+        animation: status-glowing-pulse 2s infinite ease-in-out;
+    }
+
+    @@keyframes status-glowing-pulse {
+        0% {
+            opacity: 1.0;
+        }
+        50% {
+            opacity: 0.6;
+        }
+        100% {
+            opacity: 1.0;
+        }
+    }
+</style>
+
+@code {
+    private bool isActive = false, isMotionEnabled = false, isLocationAlways = false;
+    private bool isBackgroundEnabled = false;
+    private bool isPaused = false;
+
+    protected override void OnInitialized()
+    {
+        try
+        {
+            // Register state hooks
+            StepTrackerService.OnStepCountChanged += RefreshUI;
+            StepTrackerService.OnDistanceChanged += RefreshUI;
+            StepTrackerService.OnTrackingStateChanged += RefreshUI;
+            StepTrackerService.OnStatusUpdated += RefreshUI;
+            StepTrackerService.OnPlaceNameChanged += RefreshUI;
+            StepTrackerService.OnTimerTicked += RefreshUI;
+        }
+        catch (Exception)
+        {
+            Snackbar.Add(Constants.OnLoadErrorMessage, Severity.Error);
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                await CheckPermissions();
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Initialization failed: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+
+    private async Task CheckPermissions()
+    {
+        var locationStatus = await Permissions.CheckStatusAsync<Permissions.LocationWhenInUse>();
+        if (locationStatus != PermissionStatus.Granted)
+            await Permissions.RequestAsync<Permissions.LocationWhenInUse>();
+
+        isLocationAlways = await Permissions.CheckStatusAsync<Permissions.LocationAlways>() == PermissionStatus.Granted;
+        isMotionEnabled = await IsMotionEnabled();
+        isBackgroundEnabled = IsBackgroundActivityEnabled();
+        StateHasChanged();
+
+        if (isLocationAlways && isMotionEnabled && isBackgroundEnabled)
+        {
+            isActive = true;
+            StateHasChanged();
+        }
+        else
+        {
+            string instructions = DeviceInfo.Platform == DevicePlatform.Android
+                ? "1. Change Location permission to <b>'Allow all the time'</b>.<br/>2. Enable <b>Background Activity</b> under Battery usage."
+                : "1. Change Location permission to <b>'Always'</b>.<br/>2. Turn on <b>Background App Refresh</b>.<br/>" +
+                  "3. Ensure <b>Motion & Fitness</b> is turned ON.";
+
+            bool? runSettingsSetup = await DialogService.ShowMessageBoxAsync(
+                title: "Enable Background Services",
+                markupMessage: new Microsoft.AspNetCore.Components.MarkupString(
+                    "To ensure seamless tracking, please complete these manual adjustments inside phone Settings:<br/><br/>" +
+                    $"{instructions}<br/><br/>"
+                ),
+                yesText: "Open Settings",
+                cancelText: "Cancel"
+            );
+
+            if (runSettingsSetup == true)
+                AppInfo.Current.ShowSettingsUI();
+        }
+    }
+
+    public bool IsBackgroundActivityEnabled()
+    {
+#if IOS
+        var status = UIKit.UIApplication.SharedApplication.BackgroundRefreshStatus;
+        return status == UIKit.UIBackgroundRefreshStatus.Available;
+#elif ANDROID
+        var context = Android.App.Application.Context;
+
+        // Check if the device hard-restricts background activity
+        var activityManager = (Android.App.ActivityManager)context.GetSystemService(Android.Content.Context.ActivityService);
+        if (activityManager != null && activityManager.IsBackgroundRestricted)
+        {
+            return false;
+        }
+
+        // Not hard-restricted; treat background activity as allowed.
+        return true;
+#else
+        return true;
+#endif
+    }
+
+    private async Task<bool> IsMotionEnabled()
+    {
+        // 1. Initialize a fallback status for iOS so the final 'if' statement doesn't break
+        PermissionStatus motionStatus = PermissionStatus.Granted;
+
+#if ANDROID
+        // 2. This code ONLY executes and looks for the custom class when building for Android
+        motionStatus = await Permissions.CheckStatusAsync<ActivityRecognitionPermission>();
+
+        if (motionStatus == PermissionStatus.Granted)
+            isMotionEnabled = true;
+
+        else if (motionStatus != PermissionStatus.Granted)
+            motionStatus = await Permissions.RequestAsync<ActivityRecognitionPermission>();
+#elif IOS
+        // 3. This code ONLY executes when building for iOS
+        // We query Apple's native CoreMotion permission engine directly
+        var motionAuthorization = CoreMotion.CMPedometer.AuthorizationStatus;
+
+        if (motionAuthorization == CoreMotion.CMAuthorizationStatus.Authorized)
+        {
+        motionStatus = PermissionStatus.Granted;
+        isMotionEnabled = true;
+        }
+        else if (motionAuthorization == CoreMotion.CMAuthorizationStatus.Denied ||
+        motionAuthorization == CoreMotion.CMAuthorizationStatus.Restricted)
+        {
+        motionStatus = PermissionStatus.Denied;
+        }
+        else
+        {
+        try
+        {
+        using var pedometer = new CoreMotion.CMPedometer();
+        var tcs = new TaskCompletionSource<PermissionStatus>();
+
+        // Querying a tiny window of time forces iOS to trigger the native prompt
+        pedometer.QueryPedometerData(Foundation.NSDate.Now.AddSeconds(-1), Foundation.NSDate.Now, (data, error) =>
+        {
+        // The moment the user acts on the pop-up, this callback fires
+        var updatedStatus = CoreMotion.CMPedometer.AuthorizationStatus;
+        tcs.SetResult(updatedStatus == CoreMotion.CMAuthorizationStatus.Authorized
+        ? PermissionStatus.Granted
+        : PermissionStatus.Denied);
+        });
+
+        // Wait for the user to click "Allow" or "Don't Allow" on the pop-up
+        motionStatus = await tcs.Task;
+        }
+        catch
+        {
+        // Fallback safety
+        motionStatus = PermissionStatus.Denied;
+        }
+        }
+
+#endif
+        return motionStatus == PermissionStatus.Granted;
+    }
+
+    private string GetDisplayTime()
+    {
+        return TimeSpan.FromSeconds(StepTrackerService.TotalSeconds).ToString(@"hh\:mm\:ss");
+    }
+
+    private async Task StartSession()
+    {
+        if (isActive)
+        {
+            isPaused = false;
+            StepTrackerService.StartTracking(isResuming: false);
+        }
+        else
+        {
+            await CheckPermissions();
+        }
+    }
+
+    private void StopSession()
+    {
+        isPaused = false;
+        StepTrackerService.StopTracking();
+    }
+
+    private void PauseSession()
+    {
+        isPaused = true;
+        StepTrackerService.PauseTracking();
+    }
+
+    private void ResumeSession()
+    {
+        isPaused = false;
+        StepTrackerService.StartTracking(isResuming: true);
+    }
+
+    private void RefreshUI(int steps) => InvokeAsync(StateHasChanged);
+    private void RefreshUI(double distance) => InvokeAsync(StateHasChanged);
+    private void RefreshUI(bool isTracking) => InvokeAsync(StateHasChanged);
+    private void RefreshUI(char status) => InvokeAsync(StateHasChanged);
+    private void RefreshUI(string placeName) => InvokeAsync(StateHasChanged);
+    private void RefreshUI() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        StepTrackerService.OnStepCountChanged -= RefreshUI;
+        StepTrackerService.OnDistanceChanged -= RefreshUI;
+        StepTrackerService.OnTrackingStateChanged -= RefreshUI;
+        StepTrackerService.OnStatusUpdated -= RefreshUI;
+        StepTrackerService.OnPlaceNameChanged -= RefreshUI;
+        StepTrackerService.OnTimerTicked -= RefreshUI;
+    }
+
+
+}

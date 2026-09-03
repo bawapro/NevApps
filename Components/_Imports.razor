@@ -1,0 +1,36 @@
+﻿@using System.Net.Http
+@using System.Globalization
+@using System.ComponentModel.DataAnnotations
+@using System.Text.Json
+
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Components.Routing
+@using Microsoft.AspNetCore.Components.Web
+@using Microsoft.AspNetCore.Components.Web.Virtualization
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.JSInterop
+@using Microsoft.Data.Sqlite
+@using Microsoft.Maui.Devices.Sensors
+
+@using NevApps
+@using NevApps.Components
+@using NevApps.Components.Layout
+@using NevApps.Classes
+@using NevApps.Models
+@using NevApps.Services
+
+@using MudBlazor
+
+@using NevDBClass.Data
+@using NevDBClass.Models
+
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+@inject IServiceScopeFactory ScopeFactory
+@inject IDbContextFactory<SqLiteDbContext> DbFactory
+@inject ExpenseTrackerService ExpenseTrackerService
+@inject MileageTrackerService MileageTrackerService
+@inject SettingsService SettingsService
+@inject StateService StateService
+@inject NavigationManager NavigationManager
+@inject LoggerService LoggerService

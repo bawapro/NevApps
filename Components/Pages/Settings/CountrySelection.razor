@@ -1,0 +1,74 @@
+﻿@page "/settings/country-currency"
+@using static NevApps.Models.Settings
+
+<MudContainer>
+    <MudGrid Spacing="5">
+        <MudItem xs="12" sm="12" md="5">
+            <MudAutocomplete T="Country" Label="Country" Value="SelectedCountry" ValueChanged="OnCountryChanged" Variant="Variant.Outlined"
+                             SearchFunc="SearchCountries" ToStringFunc="@(c => c?.Display ?? "")" Margin="Margin.Dense" HelperText="Country of Residence/Travel"
+                             IconSize="Size.Small" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Public"
+                             ResetValueOnEmptyText="true" CoerceText="true" Clearable="true" Dense="true" />
+        </MudItem>
+
+        <MudItem xs="6" sm="6" md="3">
+            <MudTextField @bind-Value="currency" Label="Currency" Variant="Variant.Outlined" Disabled="true" Margin="Margin.Dense"
+                          IconSize="Size.Small" Adornment="Adornment.Start" />
+        </MudItem>
+    </MudGrid>
+
+    <MudText Typo="Typo.body2" Class="mt-2">
+        <b><u>Note</u></b>: If traveling to the USA, change your country to update mileage and fuel units.
+    </MudText>
+</MudContainer>
+
+@code {
+
+    private string? country = "", currency = "";
+
+    [Parameter] public bool IsEditMode { get; set; }
+    [Parameter] public Country? SelectedCountry { get; set; }
+    [Parameter] public EventCallback<Country?> SelectedCountryChanged { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        List<Setting> Settings = await SettingsService.GetSettingsAsync();
+        country = Settings.Where(x => x.SettingKey == "country").FirstOrDefault()?.SettingValue;
+        currency = Settings.Where(x => x.SettingKey == "currency").FirstOrDefault()?.SettingValue;
+
+        if (country != null)
+        {
+            Country obj = SettingsService.AllCountries.FirstOrDefault(c => c.Name == country)!;
+            await SelectedCountryChanged.InvokeAsync(obj);
+        }
+    }
+
+    private Task<IEnumerable<Country>> SearchCountries(string value, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return Task.FromResult(SettingsService.AllCountries.Take(10));
+
+        value = value.Trim().ToLowerInvariant();
+
+        return Task.FromResult(SettingsService.AllCountries
+                     .Where(c => c.Name.ToLowerInvariant().Contains(value) ||
+                                c.Code.ToLowerInvariant().Contains(value))
+                     .Take(10));
+    }
+
+    private async Task OnCountryChanged(Country? country)
+    {
+        SelectedCountry = country;
+
+        if (country != null)
+        {
+            currency = $"{country.CurrencyCode} ({country.CurrencySymbol})";
+        }
+        else
+        {
+            currency = "";
+        }
+
+        await SelectedCountryChanged.InvokeAsync(country);  // ← notify parent
+    }
+
+}

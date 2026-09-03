@@ -1,0 +1,125 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+    <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+        <Optimize>true</Optimize>
+        <DebugSymbols>true</DebugSymbols>
+        <DebugType>portable</DebugType>
+        <StackTraceSupport>true</StackTraceSupport>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="$(TargetFramework.Contains('-android')) and '$(Configuration)' == 'Release'">
+        <SelfContained>true</SelfContained>
+        <PublishSelfContained>true</PublishSelfContained>
+        <PublishTrimmed>true</PublishTrimmed>
+        <TrimMode>partial</TrimMode>
+        <AndroidPackageFormat>aab</AndroidPackageFormat>
+        <AndroidEnableMultiDex>true</AndroidEnableMultiDex>
+        <AndroidManagedSymbols>true</AndroidManagedSymbols>
+        <EmbedAssembliesIntoApk>true</EmbedAssembliesIntoApk>
+        <RunAOTCompilation>true</RunAOTCompilation>
+        <AndroidEnableProfiledAot>true</AndroidEnableProfiledAot>
+        <AndroidSupportedAbis>armeabi-v7a;arm64-v8a</AndroidSupportedAbis>
+        <AndroidLinkTool>r8</AndroidLinkTool>
+        <AndroidEnableSGenConcurrent>true</AndroidEnableSGenConcurrent>
+        <AndroidCreateSymbolsZip>true</AndroidCreateSymbolsZip>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="$(TargetFramework.Contains('-ios')) and '$(Configuration)' == 'Release'">
+        <RuntimeIdentifier>ios-arm64</RuntimeIdentifier>
+        <BuildIpa>true</BuildIpa>
+        <DeviceSpecificBuild>false</DeviceSpecificBuild>
+        <PublishTrimmed>true</PublishTrimmed>
+        <TrimMode>partial</TrimMode>
+        <MtouchLink>SdkOnly</MtouchLink>
+        <UseInterpreter>true</UseInterpreter>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(Configuration)' == 'Debug' And $(TargetFramework.Contains('-ios'))">
+        <EmbedAssembliesIntoApk>false</EmbedAssembliesIntoApk>
+        <PublishTrimmed>true</PublishTrimmed>
+        <RunAOTCompilation>false</RunAOTCompilation>
+        <DebugType>full</DebugType>
+        
+        <MtouchLink>None</MtouchLink> <!-- This prevents actual trimming during Debug -->
+        <MtouchDebug>True</MtouchDebug>
+        <MtouchNoSymbolStrip>True</MtouchNoSymbolStrip>
+        <IOSDebugOverWiFi>true</IOSDebugOverWiFi>
+    </PropertyGroup>
+
+    <PropertyGroup>
+        <TargetFrameworks>net10.0-android;net10.0-ios</TargetFrameworks>
+        <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net10.0-windows10.0.19041.0</TargetFrameworks>
+        <ValidateXcodeVersion>false</ValidateXcodeVersion>
+        <OutputType>Exe</OutputType>
+        <AssemblyName>NevApps</AssemblyName>
+        <RootNamespace>NevApps</RootNamespace>
+        <UseMaui>true</UseMaui>
+        <SingleProject>true</SingleProject>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <EnableDefaultCssItems>false</EnableDefaultCssItems>
+        <Nullable>enable</Nullable>
+        <Configurations>Debug;Release</Configurations>
+
+        <!-- Display name -->
+        <ApplicationTitle>NevApps</ApplicationTitle>
+
+        <!-- App Identifier -->
+        <ApplicationId>com.companyname.nevapps</ApplicationId>
+        <!-- Versions -->
+        <Version>2.5.0</Version>
+        <ApplicationDisplayVersion>2.5.0</ApplicationDisplayVersion>
+        <ApplicationVersion>25</ApplicationVersion>
+
+        <!-- To develop, package, and publish an app to the Microsoft Store, see: https://aka.ms/MauiTemplateUnpackaged -->
+        <WindowsPackageType>None</WindowsPackageType>
+        <SupportedOSPlatformVersion>21.0</SupportedOSPlatformVersion>
+        <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">15.0</SupportedOSPlatformVersion>
+        <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">24.0</SupportedOSPlatformVersion>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <!-- App Icon -->
+        <MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#512BD4"/>
+
+        <!-- Splash Screen -->
+        <MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#0288D1" BaseSize="192,192"/>
+        <!-- Images -->
+        <MauiImage Include="Resources\Images\*"/>
+        <MauiImage Update="Resources\Images\dotnet_bot.svg" BaseSize="168,208"/>
+
+        <!-- Custom Fonts -->
+        <MauiFont Include="Resources\Fonts\*"/>
+
+        <!-- Raw Assets (also remove the "Resources\Raw" prefix) -->
+        <MauiAsset Include="Resources\Raw\**" LogicalName="%(RecursiveDir)%(Filename)%(Extension)"/>
+    </ItemGroup>
+    
+    <ItemGroup>
+        <PackageReference Include="CoordinateSharp" Version="3.4.1.1" />
+        <PackageReference Include="Microsoft.AspNetCore.Components" Version="10.0.10" />
+        <PackageReference Include="Microsoft.AspNetCore.Components.Forms" Version="10.0.10" />
+        <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="10.0.10" />
+        <PackageReference Include="Microsoft.AspNetCore.Components.WebView" Version="10.0.10" />
+        <PackageReference Include="Microsoft.Maui.Controls" Version="10.0.90" />
+        <PackageReference Include="Microsoft.AspNetCore.Components.WebView.Maui" Version="10.0.90" />
+        <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.10" />
+        <PackageReference Include="Microsoft.Maui.Controls.Core" Version="10.0.90" />
+        <PackageReference Include="MudBlazor" Version="9.7.0" />
+        <PackageReference Include="Plugin.Maui.OCR" Version="1.1.1" />
+        <PackageReference Include="Plugin.Maui.Pedometer" Version="1.0.0" />
+        <PackageReference Include="SkiaSharp.Views.Maui.Controls" Version="4.147.0-preview.3.1" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Compile Remove="NevDBClass\**" />
+        <Content Remove="NevDBClass\**" />
+        <EmbeddedResource Remove="NevDBClass\**" />
+        <None Remove="NevDBClass\**" />
+        <MauiXaml Remove="NevDBClass\**" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="NevDBClass\NevDBClass.csproj"/>
+    </ItemGroup>
+
+</Project>

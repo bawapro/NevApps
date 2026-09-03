@@ -1,0 +1,11 @@
+<Solution>
+  <Configurations>
+    <BuildType Name="Debug" />
+    <BuildType Name="Release" />
+  </Configurations>
+  <Project Path="NevDBClass/NevDBClass.csproj" Id="bb830891-cd72-4b1f-ab21-4208517f89f2" />
+  <Project Path="NevApps.csproj">
+    <Deploy Solution="Debug|*" />
+    <Deploy Solution="Release|*" />
+  </Project>
+</Solution>

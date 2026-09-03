@@ -1,0 +1,15 @@
+<Project>
+  <!-- Copy this file to Directory.Build.props (gitignored) for signed Release builds. -->
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'NevApps' and $(TargetFramework.Contains('-android')) and '$(Configuration)' == 'Release'">
+    <AndroidKeyStore>true</AndroidKeyStore>
+    <AndroidSigningKeyStore>$(HOME)/path/to/your.keystore</AndroidSigningKeyStore>
+    <AndroidSigningKeyAlias>your_alias</AndroidSigningKeyAlias>
+    <AndroidSigningKeyPass></AndroidSigningKeyPass>
+    <AndroidSigningStorePass></AndroidSigningStorePass>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'NevApps' and $(TargetFramework.Contains('-ios')) and '$(Configuration)' == 'Release'">
+    <CodesignKey>Apple Distribution: Your Name (TEAMID)</CodesignKey>
+    <CodesignProvision>Your_Prod_Profile</CodesignProvision>
+  </PropertyGroup>
+</Project>

@@ -1,0 +1,174 @@
+﻿@page "/settings/vehicles"
+
+<MudContainer>
+    <MudGrid>
+        <MudItem xs="12" sm="12" md="12">
+            <MudGrid>
+                <MudItem xs="12" sm="12" md="5">
+                    <MudAutocomplete T="string" Label="Vehicles to Track" Value="selectedVehicle" ValueChanged="OnVehicleChanged" OnBlur="OnVehicleBlur" SearchFunc="SearchSavedVehicles" Placeholder="Enter your vehicle info."
+                                     HelperText="Must be a unique name" IconSize="Size.Small" Variant="Variant.Outlined" Margin="Margin.Dense" MaxLength="50"
+                                     Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.DirectionsCar" AdornmentColor="Color.Primary"
+                                     Clearable="true" Dense="true" CoerceText="false" Strict="false" ResetValueOnEmptyText="true" />
+                    <!-- allows free text if no match, set true if must select existing -->
+                    <div class="mt-2 d-flex flex-wrap gap-1">
+                        @foreach (var vehicle in vehicles)
+                        {
+                            <MudChip T="string"
+                                     Text="@vehicle"
+                                     Variant="Variant.Text"
+                                     Size="Size.Small"
+                                     Icon="@Icons.Material.Filled.CheckCircle"
+                                     Color="Color.Success"
+                                     OnClick="@(() => OnVehicleChanged(vehicle))" />
+                        }
+                    </div>
+                </MudItem>
+                @if (!string.IsNullOrEmpty(selectedVehicle))
+                {
+                    <MudItem xs="12" sm="12" md="3">
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.Center">
+                            <MudIconButton Icon="@Icons.Material.Filled.Add" Color="Color.Success" Size="Size.Small" Variant="Variant.Outlined" OnClick="AddVehicle" />Add Vehicle
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Dark" Size="Size.Small" Variant="Variant.Outlined" OnClick="RemoveVehicle" />Remove Vehicle
+                        </MudStack>
+                    </MudItem>
+                }
+                <MudItem xs="6" sm="6" md="2">
+                    <MudStack>
+                        <MudText Typo="Typo.caption" Style="font-weight:bold">Start Location</MudText>
+                        <MudSwitch T="bool" Value="isHome" ValueChanged="OnStartLocationChanged" Label="Home" Color="Color.Success" UncheckedColor="Color.Surface" ThumbIcon="@Icons.Material.Outlined.Home" ThumbIconColor="Color.Dark" />
+                        <MudText Typo="Typo.caption" Color="Color.Warning" Style="font-style:italic">@msg</MudText>
+                    </MudStack>
+                </MudItem>
+                <MudItem xs="6" sm="6" md="2">
+                    <MudStack>
+                        <MudText Typo="Typo.caption" Style="font-weight:bold">Vehicle Type</MudText>
+                        <MudSwitch T="bool" Value="currentVehicleIsEV" ValueChanged="OnEVChanged" Label="@(currentVehicleIsEV ? "EV" : "non-EV")"
+                                   Color="Color.Success" UncheckedColor="Color.Surface" ThumbIcon="@Icons.Material.Filled.ElectricBolt" ThumbIconColor="Color.Dark" />                       
+                    </MudStack>
+                </MudItem>
+            </MudGrid>
+        </MudItem>
+    </MudGrid>
+
+
+</MudContainer>
+@code {
+
+    public bool isEmpty = false, isHome = true, currentVehicleIsEV = false;
+    private string? selectedVehicle, msg = "";
+    List<string> vehicles = new();
+    List<Setting> Settings = new();
+    [Parameter] public bool IsEditMode { get; set; }
+    [Parameter] public bool IsHome { get; set; }
+    [Parameter] public string? ImagePath { get; set; }
+    [Parameter] public List<string>? ImageBase64s { get; set; }
+    [Parameter] public List<string>? Vehicles { get; set; }
+    [Parameter] public EventCallback<List<string>> VehicleAdded { get; set; }
+    [Parameter] public EventCallback<List<string>> VehicleImageUpload { get; set; }
+    [Parameter] public EventCallback<bool> VehicleStartLocation { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            Settings = await SettingsService.GetSettingsAsync();
+            vehicles = Settings.Where(x => x.SettingKey == "vehicle").Select(s => s.SettingValue).ToList();
+            ImageBase64s = Settings.Where(x => x.SettingKey == "vehicleimage").Select(s => s.SettingValue).ToList();
+            isHome = !string.IsNullOrEmpty(Settings.FirstOrDefault(x => x.SettingKey == "startlocation")?.SettingValue);
+            selectedVehicle = vehicles.FirstOrDefault();
+            isEmpty = Settings.Count == 0;
+
+            CheckEV();
+            await VehicleAdded.InvokeAsync(vehicles);
+            await VehicleStartLocation.InvokeAsync(isHome);
+        }
+        catch (Exception ex)
+        {
+            LoggerService.Log($"OnInitializedAsync - {this.GetType().FullName}", ex);
+            Snackbar.Add(Constants.OnLoadErrorMessage, Severity.Error);
+        }
+    }
+
+    private void OnVehicleChanged(string? value)
+    {
+        if (!string.IsNullOrEmpty(value))
+        {
+            selectedVehicle = value;
+            CheckEV();
+        }
+    }
+
+    private async Task AddVehicle()
+    {
+        if (selectedVehicle != null && selectedVehicle.Count() > 0 && !vehicles.Contains(selectedVehicle))
+        {
+            vehicles.Add(selectedVehicle.Trim());
+            await VehicleAdded.InvokeAsync(vehicles);
+
+            if (currentVehicleIsEV)
+                StateService.SetVehicleIsEV(selectedVehicle.Trim(), currentVehicleIsEV);
+
+            StateHasChanged();
+            Snackbar.Add(selectedVehicle + " added.", Severity.Normal);
+        }
+    }
+
+    private async Task RemoveVehicle()
+    {
+        if (!string.IsNullOrEmpty(selectedVehicle) && vehicles.Contains(selectedVehicle))
+        {
+            string str = selectedVehicle;
+            StateService.ClearVehicleEVFlag(selectedVehicle.Trim());
+            vehicles.Remove(selectedVehicle);
+            await VehicleAdded.InvokeAsync(vehicles);
+            selectedVehicle = vehicles.FirstOrDefault();
+            CheckEV();
+            StateHasChanged();
+            Snackbar.Add(str + " removed.", Severity.Warning);
+        }
+    }
+
+    private Task<IEnumerable<string>> SearchSavedVehicles(string? value, CancellationToken cancellationToken = default)
+    {
+        if (!string.IsNullOrEmpty(value))
+            selectedVehicle = value;
+
+        return Task.FromResult(vehicles.AsEnumerable());
+    }
+
+    private async Task OnStartLocationChanged(bool value)
+    {
+        isHome = value;
+        msg = isHome ? "Turn off to choose any starting point." : "Turn on to always start from Home. (Only for round-trip journeys)";
+        await VehicleStartLocation.InvokeAsync(isHome);
+    }
+
+    private void OnEVChanged(bool value)
+    {
+        currentVehicleIsEV = value;
+    }
+
+    private void OnVehicleBlur(FocusEventArgs args)
+    {
+        CheckEV();
+    }
+
+    private void CheckEV()
+    {
+        if (string.IsNullOrWhiteSpace(selectedVehicle)) return;
+
+        string lower = selectedVehicle.ToLowerInvariant().Trim();
+
+        // 1. Check for an exact match of the FULL name (Catches "Mustang Mach-E")
+        bool fullMatch = Constants.EvIndicators.Any(kw => lower == kw);
+
+        // 2. Check if any standalone word matches (Fixes "Civic Hybrid")
+        var words = lower.Split(new[] { ' ', '-', '.' }, StringSplitOptions.RemoveEmptyEntries);
+        bool wordMatch = words.Any(word => Constants.EvIndicators.Contains(word));
+
+        currentVehicleIsEV = fullMatch || wordMatch;
+        
+        StateHasChanged();
+    }
+
+}

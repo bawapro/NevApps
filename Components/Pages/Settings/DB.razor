@@ -1,0 +1,189 @@
+﻿@page "/settings/db"
+
+<style>
+    /* Force-squeeze the table cells */
+    .tight-table td, .tight-table th {
+        padding: 4px 8px !important;
+        font-size: 0.8rem;
+    }
+</style>
+
+<MudStack Spacing="1">
+    @if (backups!.Count > 0)
+    {
+        <MudTable Items="backups"
+                  Dense="true"
+                  Breakpoint="Breakpoint.None"
+                  Class="tight-table">
+            <HeaderContent>
+                <MudTh>Backup</MudTh>
+                <MudTh>Details</MudTh>
+                <MudTh Style="text-align:right">Actions</MudTh>
+            </HeaderContent>
+
+            <RowTemplate>
+                <MudTd>
+                    <MudText Typo="Typo.body2"
+                             Style="font-weight:500">
+                        @context.FileName.Replace(".db3", "")
+                    </MudText>
+                </MudTd>
+                <MudTd>
+                    <MudText Style="font-size: 0.7rem; color: gray;">
+                        @context.CreatedAt.ToString("MMM dd") • @(context.FileSizeBytes / 1024)KB
+                    </MudText>
+                </MudTd>
+                <MudTd Style="text-align:right; white-space:nowrap">
+                    <MudIconButton Icon="@Icons.Material.Filled.Restore"
+                                   Color="Color.Primary"
+                                   Size="Size.Small"
+                                   OnClick="() => Restore(context.FileName)"
+                                   Class="pa-1"/>
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                   Color="Color.Error"
+                                   Size="Size.Small"
+                                   OnClick="() => Delete(context.FileName)"
+                                   Class="pa-1"/>
+                </MudTd>
+            </RowTemplate>
+
+            <FooterContent>
+                <MudTd ColSpan="3"
+                       Class="pa-2">
+                    <MudStack Row="true"
+                              Justify="Justify.SpaceBetween"
+                              AlignItems="AlignItems.Center">
+                        <MudText Typo="Typo.caption">@backups?.Count / 5 Backups</MudText>
+                        <MudText Typo="Typo.caption"
+                                 Color="Color.Info">
+                            @($"{backups?.Sum(b => b.FileSizeBytes / 1024.0 / 1024.0):N2} MB")
+                        </MudText>
+                    </MudStack>
+                </MudTd>
+            </FooterContent>
+        </MudTable>
+    }
+
+    <MudTextField @bind-Value="backupName"
+                  Label="Name your backup"
+                  HelperText="Eg. First Backup"
+                  MaxLength="15"
+                  Counter="15"
+                  Immediate="true"
+                  Margin="Margin.Dense"
+                  Variant="Variant.Text"/>
+</MudStack>
+
+<MudStack Row
+          Spacing="1"
+          AlignItems="AlignItems.Center"
+          Justify="Justify.Center">
+    <MudButton Size="Size.Small"
+               Variant="Variant.Filled"
+               Color="Color.Primary"
+               StartIcon="@Icons.Material.Filled.Backup"
+               IconSize="Size.Small"
+               OnClick="CreateBackup">
+        <MudText Typo="Typo.caption">Backup</MudText>
+    </MudButton>
+
+    <MudButton Size="Size.Small"
+               Variant="Variant.Filled"
+               Color="Color.Error"
+               StartIcon="@Icons.Material.Filled.DeleteForever"
+               IconSize="Size.Small"
+               OnClick="ClearAll">
+        <MudText Typo="Typo.caption">Clear</MudText>
+    </MudButton>
+</MudStack>
+
+@code {
+
+    private string backupName { get; set; } = "";
+    private List<BackupRestore>? backups = new();
+
+
+    [Inject] BackupRestoreService BackupRestoreService { get; set; } = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            backups = await BackupRestoreService.GetAllBackupsAsync();
+
+            if (DeviceInfo.Platform == DevicePlatform.Android)
+            {
+                if (!await RequestStoragePermission())
+                {
+                    Snackbar.Add("Storage permission denied", Severity.Warning);
+                    return;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            LoggerService.Log($"OnInitializedAsync - {this.GetType().FullName}", ex);
+            Snackbar.Add(Constants.OnLoadErrorMessage, Severity.Error);
+        }
+    }
+
+    private async Task CreateBackup()
+    {
+        if (string.IsNullOrEmpty(backupName))
+        {
+            var confirm = await DialogService.ShowMessageBoxAsync("Create Backup", "No name was provided for this backup.\n\nThis will **overwrite** any existing unnamed backup.\n\nContinue?",
+                yesText: "Yes", cancelText: "No");
+
+            if (confirm != true) return;
+        }
+
+        var (success, msg) = await BackupRestoreService.CreateBackupAsync(backupName);
+        Snackbar.Add(msg, success ? Severity.Success : Severity.Error);
+        backups = await BackupRestoreService.GetAllBackupsAsync();
+    }
+
+    private async Task Restore(string fileName)
+    {
+        var confirm = await DialogService.ShowMessageBoxAsync("Restore", "This will overwrite your current database. Continue?", yesText: "Yes", cancelText: "No");
+        if (confirm != true) return;
+
+        var (success, msg) = await BackupRestoreService.RestoreBackupAsync(fileName);
+        Snackbar.Add(msg, success ? Severity.Success : Severity.Error);
+        NavigationManager.NavigateTo("/", forceLoad: true);
+    }
+
+    private async Task<bool> RequestStoragePermission()
+    {
+        var status = await Permissions.CheckStatusAsync<Permissions.StorageRead>();
+
+        if (status != PermissionStatus.Granted)
+        {
+            status = await Permissions.RequestAsync<Permissions.StorageRead>();
+        }
+
+        return status == PermissionStatus.Granted;
+    }
+
+    private async Task Delete(string fileName)
+    {
+        var confirm = await DialogService.ShowMessageBoxAsync("Delete Backup", "Delete this backup file permanently?", yesText: "Delete", cancelText: "Cancel");
+        if (confirm == true)
+        {
+            BackupRestoreService.DeleteBackup(fileName);
+            backups = await BackupRestoreService.GetAllBackupsAsync();
+            Snackbar.Add("Backup deleted", Severity.Info);
+        }
+    }
+
+    private async Task ClearAll()
+    {
+        var confirm = await DialogService.ShowMessageBoxAsync("Clear All Data", "This will permanently delete all your data. Continue?", yesText: "Yes", cancelText: "No");
+        if (confirm == true)
+        {
+            await BackupRestoreService.ClearEverything();
+            Snackbar.Add("Data wipe-out complete.", Severity.Warning);
+            NavigationManager.NavigateTo("/", forceLoad: true);
+        }
+    }
+
+}

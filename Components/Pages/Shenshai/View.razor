@@ -1,0 +1,708 @@
+﻿@page "/shenshai/view"
+@using CoordinateSharp
+@using Muhurat = NevApps.Components.Dialogs.Muhurat
+
+<MudContainer Class="pa-1 pb-1">
+    <MudStack Row="true"
+              AlignItems="AlignItems.Center"
+              Justify="Justify.Center"
+              Spacing="3"
+              Class="position-relative"> @* Relative wrapper so icon floats cleanly inside *@
+
+        @* Pillar 1: The Image *@
+        <MudImage Src="images/faravahar.gif"
+                  Alt="Asho Faravahar"
+                  Width="56"
+                  Height="56"
+                  ObjectFit="ObjectFit.Contain"/>
+
+        @* Pillar 2: The Unified Text Grouping *@
+        <MudStack Spacing="0"
+                  Style="text-align: center; align-items: center;">
+            <MudText Typo="Typo.h5"
+                     Color="Color.Primary"
+                     GutterBottom="false"
+                     Style="font-weight: 600; line-height: 1.2;">
+                Shahenshahi Calendar
+            </MudText>
+
+            <MudText Typo="Typo.h6"
+                     Color="Color.Error"
+                     Style="font-size: 0.85rem; font-weight: 500; margin-top: 2px;">
+                Y.Z. @shenshahi.GetYazdegerdiYear(selectedDate.Value)
+            </MudText>
+        </MudStack>
+        <MudStack>
+            <MudIconButton Icon="@Icons.Material.Filled.Notifications"
+                           Color="Color.Error"
+                           Size="Size.Medium"
+                           OnClick="@(() => NavigationManager.NavigateTo("/reminders"))" />
+        </MudStack>
+    </MudStack>
+</MudContainer>
+
+<MudContainer Class="pa-2">
+    @* --- Header Section: Selection & Sunrise --- *@
+    <MudPaper Class="pa-2 mb-2"
+              Elevation="1"
+              Outlined="true">
+        <MudGrid>
+            <MudItem xs="7">
+                <MudStack Spacing="1">
+                    <MudDatePicker Label="Date"
+                                   Date="@selectedDate"
+                                   DateChanged="OnDateChanged"
+                                   DateFormat="ddd, MMM dd yyyy"
+                                   Variant="Variant.Text"
+                                   Margin="Margin.Dense"
+                                   Style="font-size: 0.85rem;"
+                                   Class="mt-0 compact-picker"/>
+                    <MudTimePicker Label="Time"
+                                   Time="@selectedTime"
+                                   TimeChanged="OnTimeChanged"
+                                   AmPm="true"
+                                   Variant="Variant.Text"
+                                   Margin="Margin.Dense"
+                                   Style="font-size: 0.85rem;"
+                                   Class="mt-0 compact-picker"/>
+                </MudStack>
+            </MudItem>
+            <MudItem xs="5"
+                     Class="d-flex justify-center">
+                <SunriseSunset CurrentMoonEmoji="@CurrentMoonEmoji"/>
+            </MudItem>
+        </MudGrid>
+    </MudPaper>
+
+    @* --- Status Section: Roj, Mah, Muhurat --- *@
+    <MudPaper Elevation="2"
+              Class="pa-2 mb-2 rounded-lg"
+              Style="background: linear-gradient(135deg, #708090 0%, #4A4E52 100%); color: white;">
+        <MudStack Row
+                  Justify="Justify.SpaceAround">
+
+            @* Roj Section *@
+            <MudStack Spacing="0"
+                      AlignItems="AlignItems.Center">
+                <MudText Typo="Typo.caption"
+                         Style="color: rgba(255,255,255,0.7); font-weight: 600;">ROJ
+                </MudText>
+                <MudText Typo="Typo.body2"
+                         Style="font-weight: 700; color: #FFFFFF;">@rojName</MudText>
+            </MudStack>
+
+            <MudDivider Vertical="true"
+                        FlexItem="true"
+                        Style="background-color: rgba(255,255,255,0.2);"/>
+
+            @* Mah Section *@
+            <MudStack Spacing="0"
+                      AlignItems="AlignItems.Center">
+                <MudText Typo="Typo.caption"
+                         Style="color: rgba(255,255,255,0.7); font-weight: 600;">MAH
+                </MudText>
+                <MudText Typo="Typo.body2"
+                         Style="font-weight: 700; color: #FFFFFF;">@mahName</MudText>
+            </MudStack>
+
+            <MudDivider Vertical="true"
+                        FlexItem="true"
+                        Style="background-color: rgba(255,255,255,0.2);"/>
+
+            @* Muhurat Section *@
+            <div @onclick="OpenFullDayMuhurat"
+                 style="cursor: pointer;"
+                 title="View Full Day Timeline">
+                <MudStack Spacing="0"
+                          AlignItems="AlignItems.Center">
+                    <MudText Typo="Typo.caption"
+                             Style="color: rgba(255,255,255,0.7); font-weight: 600;">
+                        MUHURAT
+                    </MudText>
+                    <MudText Typo="Typo.body2">
+                        @currentMuharat ⓘ
+                    </MudText>
+                </MudStack>
+            </div>
+
+        </MudStack>
+    </MudPaper>
+    @if (isLoading)
+    {
+        <MudProgressLinear Color="Color.Info"
+                           Indeterminate="true"
+                           Size="Size.Small"/>
+    }
+    else
+    {
+        @* --- The Calendar Grid --- *@
+        <div style="width: 100%; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden; background: white;">
+            @* Day Labels (Mon, Tue, etc.) *@
+            <div style="display: flex; background: radial-gradient(circle, #8FD4FA 0%, #27ADF5 100%);">
+                @for (int i = 0; i < 7; i++)
+                {
+                    <div style="flex: 1; padding: 8px 0; text-align: center; color: white; font-size: 11px; font-weight: bold; border-right: 0.5px solid #ffffff33;">
+                        @GetDayLabel(i)
+                    </div>
+                }
+            </div>
+
+            @* Dates Grid *@
+            @{
+                int totalCellsNeeded = lst.Count;
+                int rowsToRender = (int)Math.Ceiling(totalCellsNeeded / 7.0);
+                int localCnt = 0;
+            }
+            @for (int row = 0; row < rowsToRender; row++)
+            {
+                <div style="display: flex; border-bottom: 0.5px solid #e0e0e0;">
+                    @for (int col = 0; col < 7; col++)
+                    {
+                        if (localCnt < lst.Count)
+                        {
+                            var cell = lst[localCnt++];
+
+                            if (!cell.IsEmpty)
+                            {
+                                bool isSelected = cell.Date == DateOnly.FromDateTime(selectedDate!.Value);
+                                string cellBackground = isSelected
+                                    ? "background: radial-gradient(circle, #6A5ACD 0%, #483D8B 100%); color: white;"
+                                    : "background-color: #FFFFFF;";
+
+                                @* Shrink labels when a new/full moon marker is shown so the cell still fits. *@
+                                bool hasMoon = moonDates.ContainsKey(cell.Date);
+                                string dayFontSize = hasMoon ? "13px" : "16px";
+                                string rojHeight = hasMoon ? "18px" : "22px";
+
+                                <div @onclick="() => OnCellClicked(cell)"
+                                     style="flex: 1; height: 70px; padding: 4px 2px; display: flex; flex-direction: column;
+                                         align-items: center; justify-content: space-between;
+                                     @cellBackground
+                                     border-right: 1px solid #f0f0f0; border-bottom: 1px solid #f0f0f0;
+                                     cursor: pointer; box-sizing: border-box;">
+
+                                    @* Wrapped Roj Name (Height scales down if moon is present) *@
+                                    <span style="font-size: 9px; font-weight: bold; height: @rojHeight;
+                                    display: flex; align-items: center; justify-content: center;
+                                    color: @(isSelected ? "rgba(255,255,255,0.95)" : "#757575");
+                                    text-align: center; line-height: 1.1;
+                                    word-break: break-word; overflow-wrap: break-word;">
+                            @cell.RojName
+                        </span>
+
+                                    @* Milestone Moon Render *@
+                                    @if (hasMoon)
+                                    {
+                                        string symbol = moonDates[cell.Date];
+                                        if (symbol == "F")
+                                        {
+                                            <span style="font-size: 11px; margin: -2px 0; line-height: 1;">🌕</span>
+                                        }
+                                        else if (symbol == "N")
+                                        {
+                                            <span style="font-size: 11px; margin: -2px 0; line-height: 1;">🌑</span>
+                                        }
+                                    }
+
+                                    @* Day Number (Font size scales dynamically) *@
+                                    <span style="font-size: @dayFontSize; font-weight: 900; line-height: 1;
+                                    color: @(isSelected ? "#FFD700" : "#424242");">
+                            @cell.Day
+                        </span>
+                                </div>
+                            }
+                            else
+                            {
+                                <div style="flex: 1; height: 70px; background-color: #f9f9f9; border-right: 0.5px solid #e0e0e066;"></div>
+                            }
+                        }
+                        else
+                        {
+                            <div style="flex: 1; height: 70px; background-color: #f9f9f9; border-right: 0.5px solid #e0e0e066;"></div>
+                        }
+                    }
+                </div>
+            }
+        </div>
+    }
+</MudContainer>
+
+<MudStack Row="true"
+          Spacing="1"
+          AlignItems="AlignItems.Center"
+          Justify="Justify.Center"
+          Class="py-3">
+    <MudFab Size="Size.Small"
+            Color="Color.Tertiary"
+            StartIcon="@Icons.Material.Rounded.KeyboardDoubleArrowLeft"
+            OnClick="PreviousMonth"/>
+    <MudFab Size="Size.Small"
+            Color="Color.Tertiary"
+            StartIcon="@Icons.Material.Rounded.KeyboardArrowLeft"
+            OnClick="PreviousDay"/>
+    <MudFab Size="Size.Small"
+            StartIcon="@Icons.Material.Rounded.Today"
+            OnClick="Today"/>
+    <MudFab Size="Size.Small"
+            Color="Color.Tertiary"
+            StartIcon="@Icons.Material.Rounded.KeyboardArrowRight"
+            OnClick="NextDay"/>
+    <MudFab Size="Size.Small"
+            Color="Color.Tertiary"
+            StartIcon="@Icons.Material.Rounded.KeyboardDoubleArrowRight"
+            OnClick="NextMonth"/>
+</MudStack>
+
+@code {
+
+    private CancellationTokenSource? _cancellationToken;
+    private CancellationTokenSource? _moonPhaseCts;
+    bool isLoading, isNavroz;
+    string rojName = "", mahName = "", currentMuharat = "";
+    List<CalendarCell> lst = new();
+    List<string> rojNames = new();
+    List<string> days = new();
+    List<DateOnly> dates = new();
+    Dictionary<DateOnly, string> moonDates = new();
+    DateTime currentDate = DateTime.Now;
+    DateTime? selectedDate = DateTime.Today;
+    TimeSpan? selectedTime = new TimeSpan(DateTime.Now.Hour, DateTime.Now.Minute, DateTime.Now.Second);
+    ShenshahiCalendar shenshahi = new();
+    Location? myLocation;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            isLoading = true;
+            await GetLocation();
+            await LoadCalendar(currentDate);
+            isLoading = false;
+            isNavroz = StateService.IsNavroz(DateTime.Now.Year, shenshahi.GetMonthFromMah(mahName), shenshahi.GetDayFromRoj(rojName));
+            if (isNavroz)
+            {
+                var markupMessage = (MarkupString)@"✨ <b>Navroz Mubarak to you and your loved ones!</b> 🌸<br /><br />
+    Have a blessed and prosperous year ahead. 🌟<br /><br />
+    If you enjoy this app & find the calendar helpful, then please share it with our Zoroastrian Community and help expand the reach! 💖<br /><br />
+    More new features will be added over time. 🚀";
+
+                var options = new DialogOptions
+                {
+                    MaxWidth = MaxWidth.Small,
+                    FullWidth = true
+                };
+
+                await DialogService.ShowMessageBoxAsync(
+                    title: "Navroz Mubarak! 🌞",
+                    markupMessage: markupMessage,
+                    yesText: "Thank You 🙏",
+                    options: options
+                );
+            }
+        }
+        catch (Exception ex)
+        {
+            LoggerService.Log($"OnInitializedAsync - {this.GetType().FullName}", ex);
+            Snackbar.Add(Constants.OnLoadErrorMessage, Severity.Error);
+        }
+    }
+
+    private async Task GetLocation()
+    {
+        GeolocationRequest request = new(GeolocationAccuracy.Medium, TimeSpan.FromSeconds(10));
+        using (_cancellationToken = new())
+        {
+            if (request != null)
+            {
+                try
+                {
+                    myLocation = await Geolocation.GetLocationAsync(request, _cancellationToken.Token);
+                }
+                catch (Exception)
+                {
+                }
+            }
+        }
+    }
+
+    private string GetDayLabel(int i)
+    {
+        if (days != null && i < days.Count && !string.IsNullOrEmpty(days[i]))
+            return days[i].Length >= 3 ? days[i].Substring(0, 3).ToUpper() : days[i].ToUpper();
+        return "";
+    }
+
+    private (string RojName, string Month, string Day, string Year) ParseCell(string raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return ("", "", "", "");
+
+        // Handles "Hormazd:2\n11" -> ["Hormazd", "2", "11"]
+        var parts = raw.Split(new[] { ':', '\n', '^' }, StringSplitOptions.None);
+
+        return (
+            parts.Length > 0 ? parts[0] : "",
+            parts.Length > 1 ? parts[1] : "",
+            parts.Length > 2 ? parts[2] : "",
+            parts.Length > 3 ? parts[3] : ""
+        );
+    }
+
+    private async Task OnCellClicked(string dayNumber, string clickedRojName)
+    {
+        if (int.TryParse(dayNumber, out int day))
+        {
+            // 1. Update the date
+            selectedDate = new DateTime(selectedDate!.Value.Year, selectedDate.Value.Month, day);
+
+            // 2. Update the active Roj name so the UI knows which "11" to highlight
+            // This ensures if there's an '11' from the previous month, it doesn't get highlighted
+            rojName = clickedRojName;
+
+            await OnDateChanged(selectedDate);
+            StateHasChanged();
+        }
+    }
+
+    private string GetMuhuratDisplayColor(Color color) => color switch
+    {
+        // Fluorescent Green (Neon Lime) - Pops perfectly against dark grey
+        Color.Success => "#39FF14",
+
+        // Bright Red (Vivid/Electric Red)
+        Color.Error => "#FF0033",
+
+        //Bright Vivid Gold
+        Color.Warning => "#FFD700",
+
+        // Bright Gold (Keep this for the neutral Muhurats)
+        _ => "#111111"
+    };
+
+    // Change this picker handler to use the safe check method instead of calling LoadCalendar directly
+    private async Task OnDateChanged(DateTime? newDate)
+    {
+        if (newDate.HasValue)
+        {
+            selectedDate = newDate.Value;
+            DateTime selectedDateTime = selectedDate.Value.Date + selectedTime!.Value;
+
+            // This handles running moon logic ONLY if they picked a day outside the current view bounds!
+            await HandleDateSelectionChange(selectedDateTime);
+        }
+    }
+
+    private void OnTimeChanged(TimeSpan? newTime)
+    {
+        if (newTime.HasValue)
+        {
+            selectedTime = newTime.Value;
+            DateTime selectedDateTime = selectedDate!.Value.Date + selectedTime.Value;
+            currentDate = selectedDateTime;
+            CalculateMuhuratAndColors(selectedDateTime);
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadCalendar(DateTime dateTime)
+    {
+        currentDate = dateTime;
+        var localList = new List<CalendarCell>();
+        var localDatesList = new List<DateOnly>();
+
+        shenshahi = new ShenshahiCalendar();
+        rojNames = shenshahi.GetRojNames();
+        days = shenshahi.GetDays();
+        mahName = "";
+
+        bool isGatha = false, isSpaceFilled = false;
+        DateTime[] Dates = shenshahi.CalculateNavroz(currentDate);
+        string[] startMah = shenshahi.GetStartMah(Dates);
+        DateTime startDay = shenshahi.GetStartDay(currentDate, Dates, startMah, out isGatha, out mahName);
+
+        try
+        {
+            for (int i = 0; i < 30; i++)
+            {
+                if (!isSpaceFilled)
+                {
+                    for (int j = 0; j < 7; j++)
+                    {
+                        if (days[j] == startDay.DayOfWeek.ToString())
+                        {
+                            isSpaceFilled = true;
+                            var cellDate = startDay.AddDays(i);
+                            var cell = new CalendarCell { RojName = rojNames[i], Month = cellDate.Month, Day = cellDate.Day, Year = cellDate.Year };
+                            localList.Add(cell);
+                            localDatesList.Add(cell.Date);
+                            break;
+                        }
+                        else
+                        {
+                            localList.Add(new CalendarCell()); // Clean empty cell replacement
+                        }
+                    }
+                }
+                else
+                {
+                    if (isGatha && i == 29)
+                    {
+                        var cellDate = startDay.AddDays(i);
+                        var cell = new CalendarCell { RojName = rojNames[i], Month = cellDate.Month, Day = cellDate.Day, Year = cellDate.Year };
+                        localList.Add(cell);
+                        localDatesList.Add(cell.Date);
+
+                        for (int k = 1; k <= 5; k++)
+                        {
+                            var gathaDate = startDay.AddDays(i + k);
+                            var gathaCell = new CalendarCell { RojName = rojNames[i + k], Month = gathaDate.Month, Day = gathaDate.Day, Year = gathaDate.Year };
+                            localList.Add(gathaCell);
+                            localDatesList.Add(gathaCell.Date);
+                        }
+                    }
+                    else
+                    {
+                        var cellDate = startDay.AddDays(i);
+                        var cell = new CalendarCell { RojName = rojNames[i], Month = cellDate.Month, Day = cellDate.Day, Year = cellDate.Year };
+                        localList.Add(cell);
+                        localDatesList.Add(cell.Date);
+                    }
+
+                    if (!isGatha && i == 29)
+                    {
+                        while (localList.Count < 35)
+                        {
+                            localList.Add(new CalendarCell());
+                        }
+                    }
+                }
+            }
+
+            // Set the initial current view labels based on the selected day
+            var activeCell = localList.FirstOrDefault(c => !c.IsEmpty && c.Day == currentDate.Day && c.Month == currentDate.Month);
+            if (activeCell != null)
+            {
+                rojName = activeCell.RojName;
+            }
+
+            // Apply our safe UI lists swap
+            lst = localList;
+            dates = localDatesList;
+
+            // Moon calc is slow; do not block the calendar/spinner. Results paint when ready.
+            StartMoonPhaseLoad();
+        }
+        catch (Exception ex)
+        {
+            await DialogService.ShowMessageBoxAsync("Error", ex.Message, "OK");
+        }
+
+        // Refresh display values for current selection
+        CalculateMuhuratAndColors(currentDate);
+    }
+
+    private void CalculateMuhuratAndColors(DateTime targetTime)
+    {
+        currentMuharat = Classes.Muhurat.GetCurrentMuhurat(targetTime);
+    }
+
+    private void OpenFullDayMuhurat()
+    {
+        var parameters = new DialogParameters<Muhurat>
+        {
+            { x => x.TargetDate, selectedDate?.Date ?? DateTime.Today },
+            { x => x.CurrentMuharatName, currentMuharat }
+        };
+
+        var options = new DialogOptions
+        {
+            CloseButton = true,
+            MaxWidth = MaxWidth.Small,
+            FullWidth = true
+        };
+
+        DialogService.ShowAsync<Muhurat>("Choghadiya Timeline", parameters, options);
+    }
+
+    private async Task HandleDateSelectionChange(DateTime nextDate)
+    {
+        selectedDate = nextDate.Date;
+        DateTime fullTargetDateTime = selectedDate.Value + selectedTime!.Value;
+
+        DateOnly targetDateOnly = DateOnly.FromDateTime(nextDate);
+
+        // If the date is already calculated inside our visual grid view, don't reload everything!
+        if (dates.Contains(targetDateOnly))
+        {
+            currentDate = fullTargetDateTime;
+
+            // Find matching cell layout state to adjust title indicators smoothly
+            var cell = lst.FirstOrDefault(c => !c.IsEmpty && c.Date == targetDateOnly);
+            if (cell != null)
+            {
+                rojName = cell.RojName;
+            }
+
+            CalculateMuhuratAndColors(fullTargetDateTime);
+            StateHasChanged();
+        }
+        else
+        {
+            // Crossed the boundary line! We need to regenerate the layout grid
+            await LoadCalendar(fullTargetDateTime);
+        }
+    }
+
+// Tap Event handler directly on individual layout cells
+    private void OnCellClicked(CalendarCell cell)
+    {
+        if (cell == null || cell.IsEmpty) return;
+
+        selectedDate = cell.Date.ToDateTime(TimeOnly.MinValue);
+        DateTime fullTargetDateTime = selectedDate.Value + selectedTime!.Value;
+        currentDate = fullTargetDateTime;
+        rojName = cell.RojName;
+
+        CalculateMuhuratAndColors(fullTargetDateTime);
+        StateHasChanged();
+    }
+
+    private async Task PreviousMonth()
+    {
+        if (selectedDate.HasValue)
+        {
+            // Keep the exact same day, but jump one month back
+            selectedDate = selectedDate.Value.AddMonths(-1);
+            DateTime selectedDateTime = selectedDate.Value.Date + selectedTime!.Value;
+            await LoadCalendar(selectedDateTime);
+        }
+    }
+
+    private async Task NextMonth()
+    {
+        if (selectedDate.HasValue)
+        {
+            // Keep the exact same day, but jump one month forward
+            selectedDate = selectedDate.Value.AddMonths(1);
+            DateTime selectedDateTime = selectedDate.Value.Date + selectedTime!.Value;
+            await LoadCalendar(selectedDateTime);
+        }
+    }
+
+    private async Task PreviousDay() => await HandleDateSelectionChange(currentDate.AddDays(-1));
+    private async Task NextDay() => await HandleDateSelectionChange(currentDate.AddDays(1));
+
+    private async Task Today()
+    {
+        selectedTime = DateTime.Now.TimeOfDay;
+        await HandleDateSelectionChange(DateTime.Today);
+    }
+
+    private string GetMoonPhaseEmoji(PhaseEnum phase)
+    {
+        return phase switch
+        {
+            PhaseEnum.NewMoon => "🌑",
+            PhaseEnum.WaxingCrescent => "🌒",
+            PhaseEnum.FirstQuarter => "🌓",
+            PhaseEnum.WaxingGibbous => "🌔",
+            PhaseEnum.FullMoon => "🌕",
+            PhaseEnum.WaningGibbous => "🌖",
+            PhaseEnum.LastQuarter => "🌗",
+            PhaseEnum.WaningCrescent => "🌘",
+            _ => "🌕" // Default fallback
+        };
+    }
+
+    string CurrentMoonEmoji { get; set; } = "";
+
+    private void StartMoonPhaseLoad()
+    {
+        _moonPhaseCts?.Cancel();
+        _moonPhaseCts?.Dispose();
+        _moonPhaseCts = new CancellationTokenSource();
+        _ = GetMoonPhaseAsync(_moonPhaseCts.Token);
+    }
+
+    private async Task GetMoonPhaseAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (myLocation == null) return;
+
+            var datesSnapshot = dates.ToArray();
+            double lat = myLocation.Latitude;
+            double lng = myLocation.Longitude;
+
+            var tempMap = new Dictionary<DateOnly, (PhaseEnum Phase, double Fraction)>();
+            string? todayEmoji = null;
+
+            foreach (var dateOnly in datesSnapshot)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                DateTime targetDateTime = dateOnly.ToDateTime(TimeOnly.MinValue);
+
+                Celestial celestial = await Task.Run(() =>
+                    Celestial.CalculateCelestialTimes(lat, lng, targetDateTime), cancellationToken);
+
+                tempMap[dateOnly] = (celestial.MoonIllum.PhaseNameEnum, celestial.MoonIllum.Fraction);
+
+                if (dateOnly == DateOnly.FromDateTime(DateTime.Today))
+                    todayEmoji = GetMoonPhaseEmoji(celestial.MoonIllum.PhaseNameEnum);
+            }
+
+            var nextMoonDates = new Dictionary<DateOnly, string>();
+            for (int i = 0; i < datesSnapshot.Length; i++)
+            {
+                var cellDate = datesSnapshot[i];
+                var (currentPhase, currentFraction) = tempMap[cellDate];
+
+                if (currentPhase == PhaseEnum.NewMoon)
+                {
+                    nextMoonDates[cellDate] = "N";
+                }
+                else if (currentPhase == PhaseEnum.FullMoon)
+                {
+                    double prevFraction = (i > 0 && tempMap[datesSnapshot[i - 1]].Phase == PhaseEnum.FullMoon)
+                        ? tempMap[datesSnapshot[i - 1]].Fraction
+                        : 0;
+
+                    double nextFraction = (i < datesSnapshot.Length - 1 && tempMap[datesSnapshot[i + 1]].Phase == PhaseEnum.FullMoon)
+                        ? tempMap[datesSnapshot[i + 1]].Fraction
+                        : 0;
+
+                    if (currentFraction >= prevFraction && currentFraction >= nextFraction)
+                        nextMoonDates[cellDate] = "F";
+                }
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+
+            moonDates = nextMoonDates;
+            if (todayEmoji != null)
+                CurrentMoonEmoji = todayEmoji;
+
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception ex)
+        {
+            LoggerService.Log($"GetMoonPhaseAsync - {GetType().FullName}", ex);
+        }
+    }
+
+    public class CalendarCell
+    {
+        public string RojName { get; set; } = string.Empty;
+        public int Month { get; set; }
+        public int Day { get; set; }
+        public int Year { get; set; }
+        public DateOnly Date => new(Year, Month, Day);
+        public bool IsEmpty => string.IsNullOrEmpty(RojName);
+    }
+
+
+}
+

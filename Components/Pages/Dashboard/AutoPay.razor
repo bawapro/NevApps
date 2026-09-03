@@ -1,0 +1,225 @@
+﻿@using NevApps.Components.Pages.ExpenseTracker
+<style>
+    .mud-table-container {
+        width: 100% !important;
+    }
+
+    .mud-table-root {
+        table-layout: fixed !important;
+        width: 100% !important;
+    }
+</style>
+@if (isVisible)
+{
+    @if (!showAll)
+    {
+        <MudStack Row AlignItems="AlignItems.Center" Justify="Justify.Center">
+            <MudText Typo="Typo.subtitle1" Style="font-style: italic; opacity: 0.85;" Class="ml-2 mt-1">
+                Your Upcoming Payments
+            </MudText>
+            
+            @if (autoPayments != null)
+            {
+                <MudIconButton Variant="Variant.Text" Color="Color.Primary" Size="Size.Medium" Icon="@Icons.Material.Rounded.ArrowCircleRight" OnClick="() => showAll = true" />
+            }
+        </MudStack>
+    }
+
+    @if (showAll)
+    {
+        <MudStack Row AlignItems="AlignItems.Center" Justify="Justify.Center">
+            <MudText Typo="Typo.subtitle1" Style="font-style: italic; opacity: 0.85;" Class="ml-2 mt-1">
+                All Configured Auto-Payments
+            </MudText>
+            <MudIconButton Variant="Variant.Text" Color="Color.Primary" OnClick="() => showAll = false" Size="Size.Medium" Class="mt-3" Icon="@Icons.Material.Rounded.ArrowCircleLeft" />
+        </MudStack>
+
+        <MudDataGrid T="ExpenseTracker" Items="@currentPageItems" SortMode="SortMode.None" Breakpoint="Breakpoint.None" ColumnResizeMode="ResizeMode.Column"
+                     Dense="true" Hover="true" Bordered="true" Striped="true" HorizontalScrollbar="true" Filterable="true" Context="context"
+                     FilterMode="DataGridFilterMode.ColumnFilterMenu" FilterCaseSensitivity="DataGridFilterCaseSensitivity.CaseInsensitive"
+                     RowsPerPage="10" Style="overflow-x: auto;">
+            <Columns>
+                <TemplateColumn>
+                    <CellTemplate>
+                        <MudStack Spacing="0" Class="py-2">
+                            <MudStack Row="true" Justify="Justify.SpaceBetween">
+                                <MudText Typo="Typo.caption" Color="Color.Primary">
+                                    <b>Next: @(context.Item.AutoPayDate?.ToString("ddd, MMM dd"))</b>
+                                </MudText>
+                                <MudText Typo="Typo.caption" Style="opacity:0.7">
+                                    @context.Item.Category • @context.Item.Type
+                                </MudText>
+                            </MudStack>
+
+                            <MudText Typo="Typo.body2" Class="my-1">
+                                <b>@context.Item.Detail</b>
+                            </MudText>
+
+                            <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+                                <MudText Typo="Typo.body1" Color="@(context.Item.Category == "Income" ? Color.Secondary : Color.Warning)">
+                                    <b>@context.Item.Price.ToString("C", new CultureInfo(culture))</b>
+                                </MudText>
+                                <MudText Typo="Typo.caption" Class="font-italic">
+                                    @Constants.AutoPay.Frequencies.GetValueOrDefault(context.Item.Frequency ?? "", "—")
+                                </MudText>
+                            </MudStack>
+                        </MudStack>
+
+                        <MudDivider Class="my-1" Style="opacity: 0.2;" />
+
+                        <MudStack Row="true" Spacing="1" Justify="Justify.FlexEnd">
+                            <MudIconButton Icon="@(context.Item.AutoPay == 1 ? Icons.Material.Filled.CheckCircle : Icons.Material.Filled.RadioButtonUnchecked)"
+                                           Color="@(context.Item.AutoPay == 1 ? Color.Success : Color.Default)"
+                                           Size="Size.Small"
+                                           OnClick="@(() => OnToggle(context.Item))" />
+
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                           Color="Color.Info"
+                                           Size="Size.Small"
+                                           OnClick="@(() => OpenEditDialogAsync(context.Item))" />
+                        </MudStack>
+                    </CellTemplate>
+                </TemplateColumn>
+            </Columns>
+            <PagerContent>
+                <MudDivider />
+
+                <MudStack Row AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="pa-2">
+                    <MudText Typo="Typo.subtitle2" Class="ml-2">
+                        Total Outgoings: <span style="color:var(--mud-palette-success)">@autoPayments?.Where(x => x.Category != "Income").Sum(x => x.Price).ToString("C")</span>
+                    </MudText>
+                    <MudPagination Count="@pageCount" SelectedChanged="OnPageChanged" Size="Size.Small" />
+                </MudStack>
+            </PagerContent>
+
+            <NoRecordsContent>
+                <MudContainer>
+                    <MudText Align="Align.Left">No entries yet!</MudText>
+                </MudContainer>
+            </NoRecordsContent>
+        </MudDataGrid>
+    }
+    else
+    {
+        <MudGrid Spacing="2" Justify="Justify.Center">
+            <MudItem xs="12" sm="12" md="5">
+                <MudDataGrid T="ExpenseTracker" Items="@currentMonthPayments" SortMode="SortMode.None" RowsPerPage="@(currentMonthPayments!.Count())" Breakpoint="Breakpoint.None"
+                             Dense="true" Hover="true" Bordered="true" Striped="true" Filterable="false" ShowColumnOptions="false" ShowFilterIcons="false" ShowMenuIcon="false">
+                    <Columns>
+                        <TemplateColumn>
+                            <CellTemplate>
+                                <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="py-1">
+                                    <MudStack Spacing="0">
+                                        <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                            @(context.Item.AutoPayDate?.ToString("ddd, MMM dd"))
+                                        </MudText>
+                                        <MudText Typo="Typo.body2"><b>@context.Item.Detail</b></MudText>
+                                    </MudStack>
+
+                                    <MudText Typo="Typo.body2" Color="@(context.Item.Category == "Income" ? Color.Secondary : Color.Warning)">
+                                        <b>@context.Item.Price.ToString("C", new System.Globalization.CultureInfo(culture))</b>
+                                    </MudText>
+                                </MudStack>
+                            </CellTemplate>
+                        </TemplateColumn>
+                    </Columns>
+
+                    <NoRecordsContent>
+                        <MudStack AlignItems="AlignItems.Center" Class="pa-8">
+                            <MudIcon Icon="@Icons.Material.Filled.EventBusy" Size="Size.Large" Color="Color.Default" Style="opacity:0.5;" />
+                            <MudText Typo="Typo.body2" Align="Align.Center">No upcoming payments found for this period.</MudText>
+                        </MudStack>
+                    </NoRecordsContent>
+                </MudDataGrid>
+            </MudItem>
+        </MudGrid>
+    }
+}
+@code {
+
+    private bool showAll = false, isVisible = false;
+    private int pageCount = 0, pageSize = 10;
+    private string culture = "";
+    private IEnumerable<ExpenseTracker>? autoPayments, currentMonthPayments = Enumerable.Empty<ExpenseTracker>();
+    private IEnumerable<ExpenseTracker>? currentPageItems;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            List<Setting> Settings = await SettingsService.GetSettingsAsync();
+            string country = Settings.Where(x => x.SettingKey == "country").FirstOrDefault()?.SettingValue!;
+            culture = SettingsService.GetCultureCode(country);
+
+            await LoadPayments();
+
+            if (autoPayments != null && autoPayments.Count() > 0)
+            {
+                pageCount = (int)Math.Ceiling(autoPayments.Count() / (decimal)pageSize);
+                PageChanged(1);
+            }
+        }
+        catch (Exception ex)
+        {
+            LoggerService.Log($"OnInitializedAsync - {this.GetType().FullName}", ex);
+            Snackbar.Add(Constants.OnLoadErrorMessage, Severity.Error);
+        }
+    }
+
+    private void OnPageChanged(int page)
+    {
+        PageChanged(page);
+    }
+
+    private void PageChanged(int page)
+    {
+        currentPageItems = autoPayments!.Skip((page - 1) * pageSize).Take(pageSize);
+    }
+
+    private async Task LoadPayments()
+    {
+        autoPayments = await ExpenseTrackerService.GetAutoPayments();
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        var start = new DateOnly(today.Year, today.Month, 1);
+        var end = start.AddMonths(1).AddDays(-1);
+
+        currentMonthPayments = autoPayments
+            .Where(e => e.AutoPay.HasValue && e.AutoPay == 1 && ((e.AutoPayDate >= start && e.AutoPayDate <= end) || e.AutoPayDate <= today))
+            .ToList();
+            
+        isVisible = autoPayments.Count() > 0;
+    }
+
+    private async Task OnToggle(ExpenseTracker obj)
+    {
+        try
+        {
+            obj.AutoPay = obj.AutoPay == 1 ? 0 : obj.AutoPay == 0 ? 1 : null;
+            int n = await ExpenseTrackerService.UpdateAutoPaymentsAsync(obj);
+            await LoadPayments();
+        }
+        catch { }
+    }
+
+    private async Task OpenEditDialogAsync(ExpenseTracker expense)
+    {
+        var parameters = new DialogParameters<Edit> { { x => x.Expense, expense }, { x => x.OnSaved, RefreshGrid } };
+
+        var options = new DialogOptions()
+        {
+            CloseButton = true,
+            MaxWidth = MaxWidth.Medium,
+            FullWidth = true,
+            BackdropClick = false
+        };
+
+        await DialogService.ShowAsync<Edit>("Edit Expense", parameters, options);
+    }
+
+    private async Task RefreshGrid()
+    {
+        await LoadPayments();
+        StateHasChanged();
+    }
+
+}
