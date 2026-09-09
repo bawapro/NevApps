@@ -183,10 +183,21 @@
             return Roj;
         }
 
+        public List<string> GetMahNames()
+        {
+            return Mah;
+        }
+
         public List<string> GetDays()
         {
             return Days;
         }
+
+        public List<string> GetMonths() =>
+        [
+            "January", "February", "March", "April", "May", "June",
+            "July", "August", "September", "October", "November", "December"
+        ];
 
         private void SetMah()
         {

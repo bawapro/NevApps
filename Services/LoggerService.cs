@@ -11,11 +11,18 @@ namespace NevApps.Services
         private static readonly Regex UserHomePathRegex = new(
             @"([A-Za-z]:\\Users\\[^\\]+\\|/(?:Users|home)/[^/]+/)",
             RegexOptions.Compiled);
-        public LoggerService()
+        public LoggerService() : this(FileSystem.AppDataDirectory)
         {
-            var today = DateTime.Now.ToString("yyyy-MM-dd");
-            _logFilePath = Path.Combine(FileSystem.AppDataDirectory, $"app-log-{today}.txt");
         }
+
+        public LoggerService(string logDirectory)
+        {
+            Directory.CreateDirectory(logDirectory);
+            var today = DateTime.Now.ToString("yyyy-MM-dd");
+            _logFilePath = Path.Combine(logDirectory, $"app-log-{today}.txt");
+        }
+
+        public string GetLogFilePath() => _logFilePath;
 
         public void Log(string message, Exception? ex = null, string? extraInfo = null)
         {

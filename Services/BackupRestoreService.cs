@@ -27,11 +27,13 @@ namespace NevApps.Services
     {
         private readonly IDbContextFactory<SqLiteDbContext> _dbFactory;
         private readonly LoggerService _logger;
+        private readonly string _dataDirectory;
         
-        public BackupRestoreService(IDbContextFactory<SqLiteDbContext> dbContextFactory, LoggerService logger)
+        public BackupRestoreService(IDbContextFactory<SqLiteDbContext> dbContextFactory, LoggerService logger, string? dataDirectory = null)
         {
             _dbFactory = dbContextFactory;
             _logger = logger;
+            _dataDirectory = dataDirectory ?? FileSystem.AppDataDirectory;
         }
 
         /// <summary>
@@ -39,7 +41,7 @@ namespace NevApps.Services
         /// </summary>
         private string GetBackupsFolder()
         {
-            var folder = Path.Combine(FileSystem.AppDataDirectory, Constants.BackupFolderName);
+            var folder = Path.Combine(_dataDirectory, Constants.BackupFolderName);
             Directory.CreateDirectory(folder);
             return folder;
         }
@@ -54,7 +56,7 @@ namespace NevApps.Services
         {
             try
             {
-                string sourceDb = Path.Combine(FileSystem.AppDataDirectory, Constants.DbName);
+                string sourceDb = Path.Combine(_dataDirectory, Constants.DbName);
                 string fileName = string.IsNullOrEmpty(note) ? Constants.DbName : note + ".db3";
                 string destPath = Path.Combine(GetBackupsFolder(), fileName);
 
@@ -141,7 +143,7 @@ namespace NevApps.Services
                 await ForceCloseDbConnections();
 
                 string backupFolder = GetBackupsFolder();
-                string liveDbPath = Path.Combine(FileSystem.AppDataDirectory, Constants.DbName);
+                string liveDbPath = Path.Combine(_dataDirectory, Constants.DbName);
                 string filePath = Path.Combine(backupFolder, fileName);
 
                 File.Copy(filePath, liveDbPath, overwrite: true);
