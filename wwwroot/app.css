@@ -2,11 +2,27 @@ html, body {
     font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
+    /* Let the page scroll vertically, but do not let the WebView steal horizontal swipes. */
+    touch-action: pan-y;
+    overscroll-behavior-x: none;
 }
 
 /* Top nav: keep icons on one row. Compact sizes apply only when the bar is crowded. */
 .app-topbar .mud-toolbar {
     flex-wrap: nowrap !important;
+}
+
+/* Override MudBlazor's touch-action:none so the WebView does not cancel horizontal pans. */
+.app-swipe-area.mud-swipearea {
+    display: block;
+    width: 100%;
+    min-height: calc(100vh - 64px);
+    touch-action: pan-y !important;
+    overscroll-behavior-x: none;
+}
+
+.app-swipe-area * {
+    touch-action: pan-y;
 }
 
 .app-nav-icons {

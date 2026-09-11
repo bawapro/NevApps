@@ -1,4 +1,5 @@
 ﻿@inherits LayoutComponentBase
+@implements IDisposable
 
 <MudThemeProvider />
 <MudDialogProvider />
@@ -15,48 +16,55 @@
             {
                 <MudIconButton Icon="@Icons.Material.Filled.Home"
                                Size="Size.Small"
-                               Color="@GetIconColor("/")"
-                               OnClick="@(() => NavigateTo("/"))" />
+                               Color="@GetIconColor(AppNav.Home)"
+                               OnClick="@(() => NavigateTo(AppNav.Home))" />
             }
 
             @if (isExpenseTrackerOn)
             {
                 <MudIconButton Icon="@currencyIcon"
                                Size="Size.Small"
-                               Color="@GetIconColor("/expense-tracker/add")"
-                               OnClick="@(() => NavigateTo("/expense-tracker/add"))" />
+                               Color="@GetIconColor(AppNav.Expense)"
+                               OnClick="@(() => NavigateTo(AppNav.Expense))" />
             }
 
             @if (isMileageTrackerOn)
             {
                 <MudIconButton Icon="@Icons.Material.Rounded.DirectionsCarFilled"
                                Size="Size.Small"
-                               Color="@GetIconColor("/mileage-tracker/add")"
-                               OnClick="@(() => NavigateTo("/mileage-tracker/add"))" />
+                               Color="@GetIconColor(AppNav.Mileage)"
+                               OnClick="@(() => NavigateTo(AppNav.Mileage))" />
             }
 
             @if (isShenshaiOn)
             {
                 <MudIconButton Icon="@Icons.Material.Filled.CalendarMonth"
                                Size="Size.Small"
-                               Color="@GetIconColor("/shenshai/view")"
-                               OnClick="@(() => NavigateTo("/shenshai/view"))" />
+                               Color="@GetIconColor(AppNav.Shenshai)"
+                               OnClick="@(() => NavigateTo(AppNav.Shenshai))" />
             }
 
             @if (isStepsTrackerOn)
             {
                 <MudIconButton Icon="@Icons.Material.Filled.DirectionsWalk"
                                Size="Size.Small"
-                               Color="@GetIconColor("/steps-tracker/add")"
-                               OnClick="@(() => NavigateTo("/steps-tracker/add"))" />
+                               Color="@GetIconColor(AppNav.Steps)"
+                               OnClick="@(() => NavigateTo(AppNav.Steps))" />
             }
             <MudIconButton Icon="@Icons.Material.Filled.Settings"
                            Size="Size.Small"
-                           Color="@GetIconColor("/view-settings")"
-                           OnClick="@(() => NavigateTo("/view-settings"))" />
+                           Color="@GetIconColor(AppNav.Settings)"
+                           OnClick="@(() => NavigateTo(AppNav.Settings))" />
         </div>
     </MudAppBar>
-    <MudMainContent Style="padding-bottom: 40px !important;"> @Body </MudMainContent>
+    <MudMainContent Style="padding-bottom: 40px !important;">
+        <SwipeNavigator ExpenseEnabled="isExpenseTrackerOn"
+                        MileageEnabled="isMileageTrackerOn"
+                        ShenshaiEnabled="isShenshaiOn"
+                        StepsEnabled="isStepsTrackerOn">
+            @Body
+        </SwipeNavigator>
+    </MudMainContent>
 </MudLayout>
 
 @code {
@@ -85,6 +93,11 @@
         }
     }
 
+    protected override void OnInitialized()
+    {
+        NavigationManager.LocationChanged += OnLocationChanged;
+    }
+
     protected override async Task OnInitializedAsync()
     {
         try
@@ -94,13 +107,13 @@
 
             if (!isExpenseTrackerOn && !isMileageTrackerOn && isStepsTrackerOn && !isShenshaiOn)
             {
-                NavigationManager.NavigateTo("/steps-tracker/add");
+                NavigationManager.NavigateTo(AppNav.Steps);
                 return;
             }
 
             if (!isExpenseTrackerOn && !isMileageTrackerOn && isStepsTrackerOn && isShenshaiOn)
             {
-                NavigationManager.NavigateTo("/shenshai/view");
+                NavigationManager.NavigateTo(AppNav.Shenshai);
                 return;
             }
         }
@@ -111,9 +124,13 @@
         }
     }
 
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e) =>
+        InvokeAsync(StateHasChanged);
+
     private MudBlazor.Color GetIconColor(string path)
     {
-        return NavigationManager.Uri.EndsWith(path, StringComparison.OrdinalIgnoreCase)
+        var relative = NavigationManager.ToBaseRelativePath(NavigationManager.Uri);
+        return AppNav.IsActive(relative, path)
             ? MudBlazor.Color.Warning
             : MudBlazor.Color.Inherit;
     }
@@ -121,6 +138,11 @@
     private void NavigateTo(string path)
     {
         NavigationManager.NavigateTo(path);
+    }
+
+    public void Dispose()
+    {
+        NavigationManager.LocationChanged -= OnLocationChanged;
     }
 
 }

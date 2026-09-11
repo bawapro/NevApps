@@ -1,4 +1,5 @@
 ﻿@page "/"
+@implements IDisposable
 @using NevApps.Components.Pages.Dashboard
 
 @if (firstLaunch)
@@ -150,6 +151,63 @@ else
     private bool UseDashboardIcons =>
         (isExpense ? 1 : 0) + (isAutoPay ? 1 : 0) + (isMileage ? 1 : 0) + (isShenshai ? 1 : 0) >= 4;
 
+    [CascadingParameter]
+    private SwipeCoordinator? SwipeCoordinator { get; set; }
+
+    private Func<MudBlazor.SwipeDirection, bool>? _pageSwipeHandler;
+
+    private List<int> VisibleTabs
+    {
+        get
+        {
+            var tabs = new List<int>(4);
+            if (isExpense) tabs.Add(1);
+            if (isAutoPay) tabs.Add(2);
+            if (isMileage) tabs.Add(3);
+            if (isShenshai) tabs.Add(4);
+            return tabs;
+        }
+    }
+
+    protected override void OnInitialized()
+    {
+        if (SwipeCoordinator is null)
+            return;
+
+        _pageSwipeHandler = TryHandleSwipe;
+        SwipeCoordinator.TryHandlePageSwipe = _pageSwipeHandler;
+    }
+
+    internal bool TryHandleSwipe(MudBlazor.SwipeDirection direction)
+    {
+        if (firstLaunch || isEmpty)
+            return false;
+
+        var tabs = VisibleTabs;
+        if (tabs.Count == 0)
+            return false;
+
+        var index = tabs.IndexOf(activeTab);
+        if (index < 0)
+            index = 0;
+
+        if (direction == MudBlazor.SwipeDirection.RightToLeft && index < tabs.Count - 1)
+        {
+            activeTab = tabs[index + 1];
+            StateHasChanged();
+            return true;
+        }
+
+        if (direction == MudBlazor.SwipeDirection.LeftToRight && index > 0)
+        {
+            activeTab = tabs[index - 1];
+            StateHasChanged();
+            return true;
+        }
+
+        return false;
+    }
+
     protected override async Task OnInitializedAsync()
     {
         try
@@ -222,5 +280,11 @@ else
                 }
             }
         }
+    }
+
+    public void Dispose()
+    {
+        if (SwipeCoordinator is not null && SwipeCoordinator.TryHandlePageSwipe == _pageSwipeHandler)
+            SwipeCoordinator.TryHandlePageSwipe = null;
     }
 }

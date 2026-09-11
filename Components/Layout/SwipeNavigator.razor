@@ -1,0 +1,98 @@
+@implements IDisposable
+
+<MudSwipeArea @ref="_swipeArea"
+              OnSwipeMove="OnSwipeMove"
+              OnSwipeEnd="OnSwipeEnd"
+              OnSwipeCancel="OnSwipeCancel"
+              Sensitivity="50"
+              Class="app-swipe-area"
+              Style="width: 100%; min-height: 100%;">
+    <CascadingValue Value="_coordinator" IsFixed="true">
+        @ChildContent
+    </CascadingValue>
+</MudSwipeArea>
+
+@code {
+    private const double Threshold = 50;
+    private readonly SwipeCoordinator _coordinator = new();
+    private MudSwipeArea? _swipeArea;
+    private double _accX;
+    private double _accY;
+    private bool _handled;
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter]
+    public bool ExpenseEnabled { get; set; }
+
+    [Parameter]
+    public bool MileageEnabled { get; set; }
+
+    [Parameter]
+    public bool ShenshaiEnabled { get; set; }
+
+    [Parameter]
+    public bool StepsEnabled { get; set; }
+
+    private Task OnSwipeMove(MultiDimensionSwipeEventArgs args)
+    {
+        if (args.SwipeDeltas.Count >= 2)
+        {
+            _accX += args.SwipeDeltas[0] ?? 0;
+            _accY += args.SwipeDeltas[1] ?? 0;
+        }
+
+        if (_handled || Math.Abs(_accX) < Threshold || Math.Abs(_accX) <= Math.Abs(_accY))
+            return Task.CompletedTask;
+
+        var direction = _accX > 0
+            ? MudBlazor.SwipeDirection.RightToLeft
+            : MudBlazor.SwipeDirection.LeftToRight;
+        _handled = TryNavigate(direction);
+        if (_handled)
+            _swipeArea?.Cancel();
+        return Task.CompletedTask;
+    }
+
+    private void OnSwipeEnd(SwipeEventArgs args)
+    {
+        if (!_handled
+            && (args.SwipeDirection is MudBlazor.SwipeDirection.LeftToRight or MudBlazor.SwipeDirection.RightToLeft)
+            && Math.Abs(args.SwipeDelta ?? 0) >= Threshold)
+        {
+            TryNavigate(args.SwipeDirection);
+        }
+
+        Reset();
+    }
+
+    private void OnSwipeCancel(Microsoft.AspNetCore.Components.Web.PointerEventArgs _) => Reset();
+
+    internal bool TryNavigate(MudBlazor.SwipeDirection direction)
+    {
+        if (_coordinator.TryHandlePageSwipe?.Invoke(direction) == true)
+            return true;
+
+        var destinations = AppNav.GetDestinations(ExpenseEnabled, MileageEnabled, ShenshaiEnabled, StepsEnabled);
+        var relative = NavigationManager.ToBaseRelativePath(NavigationManager.Uri);
+        var target = AppNav.GetSwipeTarget(relative, direction, destinations);
+        if (string.IsNullOrEmpty(target))
+            return false;
+
+        NavigationManager.NavigateTo(target);
+        return true;
+    }
+
+    private void Reset()
+    {
+        _accX = 0;
+        _accY = 0;
+        _handled = false;
+    }
+
+    public void Dispose()
+    {
+        _coordinator.TryHandlePageSwipe = null;
+    }
+}
