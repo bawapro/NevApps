@@ -1,12 +1,14 @@
 ﻿@inherits LayoutComponentBase
 @implements IDisposable
 
-<MudThemeProvider />
+<MudThemeProvider @ref="_themeProvider"
+                  @bind-IsDarkMode="_isDarkMode"
+                  ObserveSystemDarkModeChange="_observeSystem" />
 <MudDialogProvider />
 <MudSnackbarProvider />
 <MudPopoverProvider />
 
-<MudLayout>
+<MudLayout Class="@LayoutCss">
     <MudAppBar Color="Color.Primary" Elevation="1" Dense="@IsNavCompact" Class="@AppBarCssClass">
         <MudImage Src="images/logo-t.png" Height="@(IsNavCompact ? 22 : 25)" Width="@(IsNavCompact ? 22 : 25)" Class="mr-1" />
         <MudText Typo="Typo.h6" Class="app-brand-title">NevApps</MudText>
@@ -57,22 +59,34 @@
                            OnClick="@(() => NavigateTo(AppNav.Settings))" />
         </div>
     </MudAppBar>
-    <MudMainContent Style="padding-bottom: 40px !important;">
-        <SwipeNavigator ExpenseEnabled="isExpenseTrackerOn"
-                        MileageEnabled="isMileageTrackerOn"
-                        ShenshaiEnabled="isShenshaiOn"
-                        StepsEnabled="isStepsTrackerOn">
+    <MudMainContent Class="@MainContentCss">
+        <SectionShell @ref="_shell"
+                      ExpenseEnabled="isExpenseTrackerOn"
+                      MileageEnabled="isMileageTrackerOn"
+                      ShenshaiEnabled="isShenshaiOn"
+                      StepsEnabled="isStepsTrackerOn" />
+        @if (!IsShellRoute)
+        {
             @Body
-        </SwipeNavigator>
+        }
     </MudMainContent>
 </MudLayout>
 
 @code {
+    private MudThemeProvider? _themeProvider;
+    private SectionShell? _shell;
+    private bool _isDarkMode;
+    private bool _observeSystem = true;
     private bool isExpenseTrackerOn = false, isMileageTrackerOn = false, isShenshaiOn = false, isStepsTrackerOn = false;
     private string? currencyIcon;
 
     private bool IsNavCompact => VisibleNavIconCount >= 6;
     private string AppBarCssClass => IsNavCompact ? "app-topbar app-topbar-compact" : "app-topbar";
+    private bool IsShellRoute =>
+        NavSections.IsShellRoute(NavigationManager.ToBaseRelativePath(NavigationManager.Uri));
+    private string LayoutCss =>
+        (_isDarkMode ? "app-dark " : string.Empty) + (IsShellRoute ? "app-shell-layout" : "app-detail-layout");
+    private string MainContentCss => IsShellRoute ? "app-main-shell" : "app-main-detail";
 
     private int VisibleNavIconCount
     {
@@ -95,7 +109,25 @@
 
     protected override void OnInitialized()
     {
+        ApplyThemeFromState();
+        StateService.ThemeChanged += OnThemePreferenceChanged;
         NavigationManager.LocationChanged += OnLocationChanged;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _themeProvider is null)
+            return;
+
+        if (StateService.GetTheme() != AppThemeMode.System)
+            return;
+
+        var systemDark = await _themeProvider.GetSystemDarkModeAsync();
+        if (systemDark == _isDarkMode)
+            return;
+
+        _isDarkMode = systemDark;
+        StateHasChanged();
     }
 
     protected override async Task OnInitializedAsync()
@@ -138,10 +170,26 @@
     private void NavigateTo(string path)
     {
         NavigationManager.NavigateTo(path);
+        _shell?.Show(path);
+    }
+
+    private void ApplyThemeFromState()
+    {
+        var mode = StateService.GetTheme();
+        _observeSystem = mode == AppThemeMode.System;
+        _isDarkMode = StateService.IsDark();
+        StateService.ApplyToApplication();
+    }
+
+    private async void OnThemePreferenceChanged()
+    {
+        ApplyThemeFromState();
+        await InvokeAsync(StateHasChanged);
     }
 
     public void Dispose()
     {
+        StateService.ThemeChanged -= OnThemePreferenceChanged;
         NavigationManager.LocationChanged -= OnLocationChanged;
     }
 

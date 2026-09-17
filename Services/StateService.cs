@@ -1,8 +1,11 @@
-﻿namespace NevApps.Services
+﻿using NevApps.Classes;
+
+namespace NevApps.Services
 {
     public class StateService
     {
         private readonly IPreferences _prefs;
+        internal const string ThemePreferenceKey = "AppTheme";
 
         public StateService() : this(Preferences.Default)
         {
@@ -94,6 +97,68 @@
             bool needsRefresh = lastDateStr != DateTime.Today.ToString("yyyy-MM-dd");
 
             return (sunrise, sunset, city, needsRefresh);
+        }
+
+        #endregion
+
+        #region APPEARANCE
+
+        public event Action? ThemeChanged;
+
+        public AppThemeMode GetTheme()
+        {
+            var value = _prefs.Get(ThemePreferenceKey, nameof(AppThemeMode.System));
+            return Enum.TryParse<AppThemeMode>(value, out var mode) ? mode : AppThemeMode.System;
+        }
+
+        public bool IsOsDark()
+        {
+            try
+            {
+                return Application.Current?.RequestedTheme == AppTheme.Dark;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        public bool IsDark()
+        {
+            return GetTheme() switch
+            {
+                AppThemeMode.Dark => true,
+                AppThemeMode.Light => false,
+                _ => IsOsDark()
+            };
+        }
+
+        public void SetTheme(AppThemeMode mode)
+        {
+            _prefs.Set(ThemePreferenceKey, mode.ToString());
+            ApplyToApplication();
+            ThemeChanged?.Invoke();
+        }
+
+        public void ApplyToApplication()
+        {
+            try
+            {
+                var app = Application.Current;
+                if (app is null)
+                    return;
+
+                app.UserAppTheme = GetTheme() switch
+                {
+                    AppThemeMode.Light => AppTheme.Light,
+                    AppThemeMode.Dark => AppTheme.Dark,
+                    _ => AppTheme.Unspecified
+                };
+            }
+            catch
+            {
+                // No MAUI window in unit tests
+            }
         }
 
         #endregion

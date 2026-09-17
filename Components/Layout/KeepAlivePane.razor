@@ -1,0 +1,15 @@
+@ChildContent
+
+@code {
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private bool _render = true;
+
+    protected override bool ShouldRender() => _render;
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender)
+            _render = false;
+    }
+}

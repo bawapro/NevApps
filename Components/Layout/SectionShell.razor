@@ -1,0 +1,333 @@
+@using NevApps.Components.Pages
+@using ExpenseAdd = NevApps.Components.Pages.ExpenseTracker.Add
+@using MileageAdd = NevApps.Components.Pages.MileageTracker.Add
+@using ShenshaiView = NevApps.Components.Pages.Shenshai.View
+@using StepsAdd = NevApps.Components.Pages.StepTracker.Add
+@using SettingsView = NevApps.Components.Pages.Settings.View
+@inject IJSRuntime JS
+@implements IDisposable
+
+<div @ref="_viewport" class="@SwipeClass">
+    <div class="section-shell-viewport">
+        @foreach (var path in _pages)
+        {
+            var slot = PaneSlot(path);
+            <div @key="path"
+                 class="@PaneClass(slot)"
+                 style="@PaneStyle(slot)">
+                @if (_mounted.Contains(path))
+                {
+                    <KeepAlivePane>
+                        @SectionContent(path)
+                    </KeepAlivePane>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private readonly HashSet<string> _mounted = new(StringComparer.OrdinalIgnoreCase);
+    private List<string> _pages = [NavSections.Settings];
+    private int _index;
+    private double _slotBias;
+    private bool _settling;
+    private bool _active = true;
+    private bool _warmed;
+    private bool _swipeAttached;
+    private int _moveId;
+    private int? _slidingTo;
+    private ElementReference _viewport;
+    private DotNetObjectReference<SectionShell>? _jsRef;
+    private CancellationTokenSource? _settleCts;
+
+    [Parameter] public bool ExpenseEnabled { get; set; }
+    [Parameter] public bool MileageEnabled { get; set; }
+    [Parameter] public bool ShenshaiEnabled { get; set; }
+    [Parameter] public bool StepsEnabled { get; set; }
+    [Parameter] public bool AdminEnabled { get; set; }
+
+    private NavSections.Features Features => new(
+        ExpenseEnabled,
+        MileageEnabled,
+        ShenshaiEnabled,
+        StepsEnabled,
+        AdminEnabled);
+
+    private string SwipeClass =>
+        "section-shell"
+        + (_active ? " is-active" : " is-hidden")
+        + (_settling ? " is-settling" : string.Empty);
+
+    protected override void OnInitialized()
+    {
+        NavigationManager.LocationChanged += OnLocationChanged;
+        RebuildPageList();
+        Show(CurrentPath());
+    }
+
+    protected override void OnParametersSet()
+    {
+        RebuildPageList();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+            await AttachSwipeAsync();
+
+        if (!firstRender || _warmed)
+            return;
+
+        _warmed = true;
+        await Task.Yield();
+        if (MountNeighbors())
+            StateHasChanged();
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        _ = InvokeAsync(() => Show(CurrentPath()));
+    }
+
+    /// <summary>
+    /// Instantly show a shell section. Used by top-nav taps so the pane
+    /// always follows the URL, even if a swipe animation is in flight.
+    /// </summary>
+    public void Show(string path)
+    {
+        if (path.Contains("://", StringComparison.Ordinal))
+            path = NavigationManager.ToBaseRelativePath(path);
+
+        var active = NavSections.IsShellRoute(path);
+        var pagesChanged = RebuildPageList(path);
+
+        var nextIndex = NavSections.IndexOf(path, _pages);
+        if (nextIndex < 0)
+            nextIndex = 0;
+
+        var activeChanged = active != _active;
+        _active = active;
+        EnsureMounted(_pages[nextIndex]);
+
+        if (nextIndex == _index)
+        {
+            if (activeChanged || pagesChanged)
+                StateHasChanged();
+            return;
+        }
+
+        // A swipe is already sliding to this page — don't jump and kill the animation.
+        if (_slidingTo == nextIndex)
+            return;
+
+        _moveId++;
+        _slidingTo = null;
+        _index = nextIndex;
+        CancelSettle();
+        StateHasChanged();
+    }
+
+    private bool RebuildPageList(string? currentPath = null)
+    {
+        currentPath ??= _pages.Count > 0
+            ? _pages[Math.Clamp(_index, 0, _pages.Count - 1)]
+            : CurrentPath();
+
+        var pages = NavSections.VisiblePages(Features, currentPath).ToList();
+        if (pages.Count == 0)
+            pages.Add(NavSections.Settings);
+
+        var samePages = pages.Count == _pages.Count
+                        && pages.SequenceEqual(_pages, StringComparer.OrdinalIgnoreCase);
+        if (samePages)
+            return false;
+
+        var mapped = NavSections.IndexOf(currentPath, pages);
+        _pages = pages;
+        _index = mapped >= 0 ? mapped : 0;
+        EnsureMounted(_pages[_index]);
+        return true;
+    }
+
+    [JSInvokable]
+    public void OnJsSwipe(int direction)
+    {
+        if (!_active || _settling)
+            return;
+        Commit(direction);
+    }
+
+    internal void Commit(int direction)
+    {
+        if (direction is not (NavSections.Next or NavSections.Previous) || _pages.Count < 2)
+            return;
+
+        var current = _pages[Math.Clamp(_index, 0, _pages.Count - 1)];
+        var target = NavSections.Neighbor(current, direction, Features);
+        if (string.IsNullOrEmpty(target) || string.Equals(target, current, StringComparison.OrdinalIgnoreCase))
+            return;
+
+        var nextIndex = NavSections.IndexOf(target, _pages);
+        if (nextIndex < 0)
+            return;
+
+        EnsureMounted(target);
+        _slotBias = direction == NavSections.Next ? 40 : -40;
+        _slidingTo = nextIndex;
+        _ = SlideToAsync(nextIndex);
+        NavigationManager.NavigateTo(target);
+    }
+
+    private async Task SlideToAsync(int nextIndex)
+    {
+        var id = ++_moveId;
+        BeginSettle();
+        await InvokeAsync(StateHasChanged);
+        await Task.Yield();
+        if (id != _moveId)
+            return;
+
+        _index = nextIndex;
+        _slidingTo = null;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void BeginSettle()
+    {
+        _settling = true;
+        _settleCts?.Cancel();
+        _settleCts?.Dispose();
+        var cts = new CancellationTokenSource();
+        _settleCts = cts;
+        _ = SettleAsync(cts.Token);
+    }
+
+    private void CancelSettle()
+    {
+        _settleCts?.Cancel();
+        _settling = false;
+        _slotBias = 0;
+    }
+
+    private async Task SettleAsync(CancellationToken token)
+    {
+        try
+        {
+            await Task.Delay(300, token);
+        }
+        catch (TaskCanceledException)
+        {
+            return;
+        }
+
+        _settling = false;
+        _slotBias = 0;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private int PaneSlot(string path)
+    {
+        var i = NavSections.IndexOf(path, _pages);
+        if (i < 0)
+            return 99;
+        return NavSections.Slot(i, _index, _pages.Count, _slotBias);
+    }
+
+    private string PaneClass(int slot)
+        => slot == 0
+            ? (_settling ? "section-pane is-current is-sliding" : "section-pane is-current")
+            : "section-pane";
+
+    private string PaneStyle(int slot)
+    {
+        if (Math.Abs(slot) > 1)
+            return "display:none";
+
+        if (slot == 0 && !_settling)
+            return string.Empty;
+
+        return slot switch
+        {
+            0 => "transform:translate3d(0,0,0)",
+            > 0 => "transform:translate3d(100%,0,0)",
+            _ => "transform:translate3d(-100%,0,0)"
+        };
+    }
+
+    private void EnsureMounted(string path) => _mounted.Add(path);
+
+    private bool MountNeighbors()
+    {
+        if (_pages.Count == 0)
+            return false;
+
+        var changed = _mounted.Add(_pages[_index]);
+        var prev = (_index - 1 + _pages.Count) % _pages.Count;
+        var next = (_index + 1) % _pages.Count;
+        changed |= _mounted.Add(_pages[prev]);
+        changed |= _mounted.Add(_pages[next]);
+        return changed;
+    }
+
+    private string CurrentPath() => NavigationManager.ToBaseRelativePath(NavigationManager.Uri);
+
+    private static RenderFragment SectionContent(string path) => path switch
+    {
+        NavSections.Home => Wrap<Home>(),
+        NavSections.Expense => Wrap<ExpenseAdd>(),
+        NavSections.Mileage => Wrap<MileageAdd>(),
+        NavSections.Shenshai => Wrap<ShenshaiView>(),
+        NavSections.Steps => Wrap<StepsAdd>(),
+        NavSections.Settings => Wrap<SettingsView>(),
+        _ => _ => { }
+    };
+
+    private static RenderFragment Wrap<T>() where T : IComponent => builder =>
+    {
+        builder.OpenComponent<T>(0);
+        builder.CloseComponent();
+    };
+
+    private async Task AttachSwipeAsync()
+    {
+        if (_swipeAttached)
+            return;
+
+        _jsRef = DotNetObjectReference.Create(this);
+        try
+        {
+            await JS.InvokeVoidAsync("sectionSwipe.attach", _viewport, _jsRef, 80);
+            _swipeAttached = true;
+        }
+        catch (Exception)
+        {
+            _jsRef.Dispose();
+            _jsRef = null;
+        }
+    }
+
+    public void Dispose()
+    {
+        NavigationManager.LocationChanged -= OnLocationChanged;
+        _settleCts?.Cancel();
+        _settleCts?.Dispose();
+        _ = DetachSwipeAsync();
+    }
+
+    private async Task DetachSwipeAsync()
+    {
+        try
+        {
+            if (_swipeAttached)
+                await JS.InvokeVoidAsync("sectionSwipe.detach", _viewport);
+        }
+        catch (Exception)
+        {
+        }
+
+        _swipeAttached = false;
+        _jsRef?.Dispose();
+        _jsRef = null;
+    }
+}

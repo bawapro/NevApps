@@ -20,6 +20,7 @@ public class SettingsPageTests : BunitPageContext
             Assert.Contains("Vehicle Selection", cut.Markup);
             Assert.Contains("Category Selection", cut.Markup);
             Assert.Contains("Backup-Restore-Clear", cut.Markup);
+            Assert.Contains("Themes", cut.Markup);
             Assert.Contains("Save Settings", cut.Markup);
         });
     }

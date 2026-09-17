@@ -1,3 +1,4 @@
+using NevApps.Classes;
 using NevApps.Services;
 using MobileNevApps.Tests.Helpers;
 
@@ -72,5 +73,20 @@ public class StateServiceTests
         Assert.False(_state.IsNavroz(2026, 0, 2));
         Assert.False(_state.IsNavroz(2026, 1, 1));
         Assert.True(_state.IsNavroz(2027, 0, 0));
+    }
+
+    [Fact]
+    public void Theme_DefaultsToSystemAndPersistsSelection()
+    {
+        Assert.Equal(AppThemeMode.System, _state.GetTheme());
+
+        _state.SetTheme(AppThemeMode.Dark);
+        Assert.Equal(AppThemeMode.Dark, _state.GetTheme());
+        Assert.True(_state.IsDark());
+        Assert.Equal(nameof(AppThemeMode.Dark), _prefs.Get(StateService.ThemePreferenceKey, ""));
+
+        _state.SetTheme(AppThemeMode.Light);
+        Assert.Equal(AppThemeMode.Light, _state.GetTheme());
+        Assert.False(_state.IsDark());
     }
 }

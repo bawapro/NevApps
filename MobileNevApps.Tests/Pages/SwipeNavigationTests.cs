@@ -124,16 +124,46 @@ public class SwipeNavigationTests : BunitPageContext
     }
 
     [Fact]
-    public void MainLayout_WrapsBodyInMudSwipeArea()
+    public void MainLayout_HostsSectionShellForTopLevelRoutes()
     {
         var cut = Render<MainLayout>(ps => ps.Add(p => p.Body, (RenderFragment)(builder =>
             builder.AddMarkupContent(0, "<p>layout-body</p>"))));
 
         cut.WaitForAssertion(() =>
         {
-            Assert.NotNull(cut.FindComponent<MudSwipeArea>());
-            Assert.Contains("layout-body", cut.Markup);
+            Assert.NotNull(cut.FindComponent<SectionShell>());
         });
+    }
+
+    [Fact]
+    public async Task SectionShell_CommitNext_NavigatesToNextAppSection()
+    {
+        var nav = Ctx.Services.GetRequiredService<NavigationManager>();
+        nav.NavigateTo(AppNav.Home);
+
+        var cut = Render<SectionShell>(ps => ps
+            .Add(p => p.ExpenseEnabled, true)
+            .Add(p => p.MileageEnabled, true)
+            .Add(p => p.ShenshaiEnabled, true)
+            .Add(p => p.StepsEnabled, true));
+
+        await cut.InvokeAsync(() => cut.Instance.Commit(NavSections.Next));
+
+        Assert.EndsWith(AppNav.Expense, nav.Uri, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task SectionShell_CommitPrevious_WrapsToSettings()
+    {
+        var nav = Ctx.Services.GetRequiredService<NavigationManager>();
+        nav.NavigateTo(AppNav.Home);
+
+        var cut = Render<SectionShell>(ps => ps
+            .Add(p => p.ExpenseEnabled, true));
+
+        await cut.InvokeAsync(() => cut.Instance.Commit(NavSections.Previous));
+
+        Assert.EndsWith(AppNav.Settings, nav.Uri, StringComparison.OrdinalIgnoreCase);
     }
 
     private static async Task InvokeSwipe(IRenderedComponent<SwipeNavigator> cut, SwipeDirection direction)

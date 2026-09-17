@@ -136,12 +136,12 @@
     else
     {
         @* --- The Calendar Grid --- *@
-        <div style="width: 100%; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden; background: white;">
+        <div class="shenshai-calendar">
             @* Day Labels (Mon, Tue, etc.) *@
-            <div style="display: flex; background: radial-gradient(circle, #8FD4FA 0%, #27ADF5 100%);">
+            <div class="shenshai-calendar-header">
                 @for (int i = 0; i < 7; i++)
                 {
-                    <div style="flex: 1; padding: 8px 0; text-align: center; color: white; font-size: 11px; font-weight: bold; border-right: 0.5px solid #ffffff33;">
+                    <div class="shenshai-calendar-dow">
                         @GetDayLabel(i)
                     </div>
                 }
@@ -155,7 +155,7 @@
             }
             @for (int row = 0; row < rowsToRender; row++)
             {
-                <div style="display: flex; border-bottom: 0.5px solid #e0e0e0;">
+                <div class="shenshai-calendar-row">
                     @for (int col = 0; col < 7; col++)
                     {
                         if (localCnt < lst.Count)
@@ -165,9 +165,6 @@
                             if (!cell.IsEmpty)
                             {
                                 bool isSelected = cell.Date == DateOnly.FromDateTime(selectedDate!.Value);
-                                string cellBackground = isSelected
-                                    ? "background: radial-gradient(circle, #6A5ACD 0%, #483D8B 100%); color: white;"
-                                    : "background-color: #FFFFFF;";
 
                                 @* Shrink labels when a new/full moon marker is shown so the cell still fits. *@
                                 bool hasMoon = moonDates.ContainsKey(cell.Date);
@@ -175,18 +172,10 @@
                                 string rojHeight = hasMoon ? "18px" : "22px";
 
                                 <div @onclick="() => OnCellClicked(cell)"
-                                     style="flex: 1; height: 70px; padding: 4px 2px; display: flex; flex-direction: column;
-                                         align-items: center; justify-content: space-between;
-                                     @cellBackground
-                                     border-right: 1px solid #f0f0f0; border-bottom: 1px solid #f0f0f0;
-                                     cursor: pointer; box-sizing: border-box;">
+                                     class="shenshai-calendar-cell @(isSelected ? "selected" : null)">
 
                                     @* Wrapped Roj Name (Height scales down if moon is present) *@
-                                    <span style="font-size: 9px; font-weight: bold; height: @rojHeight;
-                                    display: flex; align-items: center; justify-content: center;
-                                    color: @(isSelected ? "rgba(255,255,255,0.95)" : "#757575");
-                                    text-align: center; line-height: 1.1;
-                                    word-break: break-word; overflow-wrap: break-word;">
+                                    <span class="shenshai-roj" style="height: @rojHeight;">
                             @cell.RojName
                         </span>
 
@@ -196,29 +185,28 @@
                                         string symbol = moonDates[cell.Date];
                                         if (symbol == "F")
                                         {
-                                            <span style="font-size: 11px; margin: -2px 0; line-height: 1;">🌕</span>
+                                            <span class="shenshai-moon">🌕</span>
                                         }
                                         else if (symbol == "N")
                                         {
-                                            <span style="font-size: 11px; margin: -2px 0; line-height: 1;">🌑</span>
+                                            <span class="shenshai-moon">🌑</span>
                                         }
                                     }
 
                                     @* Day Number (Font size scales dynamically) *@
-                                    <span style="font-size: @dayFontSize; font-weight: 900; line-height: 1;
-                                    color: @(isSelected ? "#FFD700" : "#424242");">
+                                    <span class="shenshai-day" style="font-size: @dayFontSize;">
                             @cell.Day
                         </span>
                                 </div>
                             }
                             else
                             {
-                                <div style="flex: 1; height: 70px; background-color: #f9f9f9; border-right: 0.5px solid #e0e0e066;"></div>
+                                <div class="shenshai-calendar-cell empty"></div>
                             }
                         }
                         else
                         {
-                            <div style="flex: 1; height: 70px; background-color: #f9f9f9; border-right: 0.5px solid #e0e0e066;"></div>
+                            <div class="shenshai-calendar-cell empty"></div>
                         }
                     }
                 </div>
@@ -331,53 +319,7 @@
             return days[i].Length >= 3 ? days[i].Substring(0, 3).ToUpper() : days[i].ToUpper();
         return "";
     }
-
-    private (string RojName, string Month, string Day, string Year) ParseCell(string raw)
-    {
-        if (string.IsNullOrWhiteSpace(raw)) return ("", "", "", "");
-
-        // Handles "Hormazd:2\n11" -> ["Hormazd", "2", "11"]
-        var parts = raw.Split(new[] { ':', '\n', '^' }, StringSplitOptions.None);
-
-        return (
-            parts.Length > 0 ? parts[0] : "",
-            parts.Length > 1 ? parts[1] : "",
-            parts.Length > 2 ? parts[2] : "",
-            parts.Length > 3 ? parts[3] : ""
-        );
-    }
-
-    private async Task OnCellClicked(string dayNumber, string clickedRojName)
-    {
-        if (int.TryParse(dayNumber, out int day))
-        {
-            // 1. Update the date
-            selectedDate = new DateTime(selectedDate!.Value.Year, selectedDate.Value.Month, day);
-
-            // 2. Update the active Roj name so the UI knows which "11" to highlight
-            // This ensures if there's an '11' from the previous month, it doesn't get highlighted
-            rojName = clickedRojName;
-
-            await OnDateChanged(selectedDate);
-            StateHasChanged();
-        }
-    }
-
-    private string GetMuhuratDisplayColor(Color color) => color switch
-    {
-        // Fluorescent Green (Neon Lime) - Pops perfectly against dark grey
-        Color.Success => "#39FF14",
-
-        // Bright Red (Vivid/Electric Red)
-        Color.Error => "#FF0033",
-
-        //Bright Vivid Gold
-        Color.Warning => "#FFD700",
-
-        // Bright Gold (Keep this for the neutral Muhurats)
-        _ => "#111111"
-    };
-
+    
     // Change this picker handler to use the safe check method instead of calling LoadCalendar directly
     private async Task OnDateChanged(DateTime? newDate)
     {

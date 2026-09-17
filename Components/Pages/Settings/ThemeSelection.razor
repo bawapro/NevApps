@@ -1,0 +1,64 @@
+<MudPaper Elevation="0"
+          Outlined="true"
+          Class="pa-2">
+    <MudList T="string">
+        <MudListItem Icon="@Icons.Material.Filled.BrightnessAuto"
+                     IconColor="Color.Info"
+                     OnClick="@(() => Select(AppThemeMode.System))">
+            <div class="d-flex align-center justify-space-between w-100">
+                <MudStack Spacing="0">
+                    <MudText>System</MudText>
+                </MudStack>
+                @if (_selected == AppThemeMode.System)
+                {
+                    <MudIcon Icon="@Icons.Material.Filled.CheckCircle"/>
+                }
+            </div>
+        </MudListItem>
+
+        <MudDivider DividerType="DividerType.Inset"/>
+
+        <MudListItem Icon="@Icons.Material.Filled.LightMode"
+                     IconColor="Color.Warning"
+                     OnClick="@(() => Select(AppThemeMode.Light))">
+            <div class="d-flex align-center justify-space-between w-100">
+                <MudText>Light</MudText>
+                @if (_selected == AppThemeMode.Light)
+                {
+                    <MudIcon Icon="@Icons.Material.Filled.CheckCircle"/>
+                }
+            </div>
+        </MudListItem>
+
+        <MudDivider DividerType="DividerType.Inset"/>
+
+        <MudListItem Icon="@Icons.Material.Filled.DarkMode"
+                     OnClick="@(() => Select(AppThemeMode.Dark))">
+            <div class="d-flex align-center justify-space-between w-100">
+                <MudText>Dark</MudText>
+                @if (_selected == AppThemeMode.Dark)
+                {
+                    <MudIcon Icon="@Icons.Material.Filled.CheckCircle"/>
+                }
+            </div>
+        </MudListItem>
+    </MudList>
+</MudPaper>
+
+@code {
+    private AppThemeMode _selected = AppThemeMode.System;
+
+    protected override void OnInitialized()
+    {
+        _selected = StateService.GetTheme();
+    }
+
+    private void Select(AppThemeMode mode)
+    {
+        if (_selected == mode)
+            return;
+
+        _selected = mode;
+        StateService.SetTheme(mode);
+    }
+}

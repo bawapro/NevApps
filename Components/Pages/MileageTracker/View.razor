@@ -40,14 +40,12 @@
              Hover="true"
              Bordered="true"
              Striped="true"
-             HorizontalScrollbar="true"
              Filterable="true"
              FilterMode="DataGridFilterMode.ColumnFilterMenu"
              FilterCaseSensitivity="DataGridFilterCaseSensitivity.CaseInsensitive"
              QuickFilter="QuickFilterFunc"
              Elevation="0"
-             RowsPerPage="10"
-             Style="overflow-x: auto;">
+             RowsPerPage="10">
     <ToolBarContent>
         <MudTextField Value="searchText"
                       ValueChanged="@(async (string v) =>
@@ -185,9 +183,8 @@
                           Class="py-2">
                     <MudStack Row="true"
                               Justify="Justify.SpaceBetween">
-                        <MudText Typo="Typo.caption"
-                                 Color="Color.Primary">
-                            <b>@context.Item.Date.ToString("ddd, MMM dd, yyyy")</b>
+                        <MudText Class="view-row-date">
+                            @context.Item.Date.ToString("ddd, MMM dd, yyyy")
                         </MudText>
 
                         <MudStack Spacing="0"
@@ -236,7 +233,7 @@
                                  Variant="Variant.Text"
                                  Color="Color.Default"
                                  Class="ma-0 px-2"
-                                 Style="background-color: rgba(0,0,0,0.05)">
+                                 Style="background-color: var(--mud-palette-background-grey)">
                             @(isImperial ? (int)Math.Round(Constants.Conversions.KmToMiles * context.Item.Distance) : context.Item.Distance) @(isImperial ? "mi" : "km")
                         </MudChip>
                     </MudStack>

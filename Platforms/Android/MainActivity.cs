@@ -1,6 +1,7 @@
 ﻿using Android.App;
 using Android.Content.PM;
 using Android.OS;
+using Android.Views;
 using AndroidX.Activity;
 
 namespace NevApps
@@ -11,6 +12,10 @@ namespace NevApps
         protected override void OnCreate(Bundle? savedInstanceState)
         {
             base.OnCreate(savedInstanceState);
+
+            // Shrink the webview with the keypad so autocomplete lists are not
+            // drawn under the keyboard (OxygenOS default can overlay instead).
+            Window?.SetSoftInputMode(SoftInput.AdjustResize);
 
             //EdgeToEdge.Enable(this);
         }

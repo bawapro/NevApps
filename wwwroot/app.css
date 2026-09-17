@@ -1,10 +1,193 @@
+:root {
+    color-scheme: light dark;
+}
+
 html, body {
     font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
-    /* Let the page scroll vertically, but do not let the WebView steal horizontal swipes. */
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+    background-color: var(--mud-palette-background, #ffffff);
+    color: var(--mud-palette-text-primary, inherit);
     touch-action: pan-y;
     overscroll-behavior-x: none;
+}
+
+@media (prefers-color-scheme: dark) {
+    html, body {
+        background-color: var(--mud-palette-background, #121212);
+        color: var(--mud-palette-text-primary, #cfcfcf);
+    }
+
+    #app,
+    .section-shell,
+    .section-shell-viewport {
+        background-color: var(--mud-palette-background, #121212);
+    }
+}
+
+body {
+    display: flex;
+    flex-direction: column;
+}
+
+#app {
+    /* basis 0 so this box is the viewport leftover, not the content height.
+       Otherwise iOS % heights on detail routes resolve to content and never scroll. */
+    flex: 1 1 0%;
+    min-height: 0;
+    overflow: hidden;
+    position: relative;
+}
+
+.mud-layout.app-shell-layout,
+.mud-layout.app-detail-layout {
+    height: 100%;
+    max-height: 100%;
+    overflow: hidden;
+}
+
+.app-main-shell {
+    height: 100%;
+    max-height: 100%;
+    overflow: hidden !important;
+    padding-bottom: 0 !important;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+}
+
+/* Detail routes (expense/mileage view-edit, …) are not swipe panes.
+   html/body overflow is hidden for the shell, so this element must be the scroller.
+   Pin it like .section-pane: iOS WKWebView will not pan a % height box, and
+   overflow-x:hidden + overflow-y:auto on the same element drops the gesture. */
+.app-main-detail {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    min-height: 0;
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    touch-action: pan-y;
+    padding-bottom: 40px !important;
+    box-sizing: border-box;
+}
+
+/* MudDataGrid sets .mud-table-container { overflow-y: auto } with no height.
+   iOS then treats the grid as the scroll target, finds nothing to pan, and
+   the page looks locked. Detail routes scroll on .app-main-detail instead. */
+.app-main-detail .mud-table-container {
+    overflow: visible !important;
+    max-height: none !important;
+}
+
+/* Persistent section shell: keep top-level pages mounted and slide them after swipe. */
+.section-shell {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.section-shell.is-hidden {
+    display: none;
+}
+
+.section-shell,
+.section-shell-viewport {
+    position: relative;
+    flex: 1 1 auto;
+    min-height: 0;
+    height: auto;
+    overflow: hidden;
+    touch-action: pan-y;
+    overscroll-behavior-x: none;
+    background: var(--mud-palette-background, #ffffff);
+}
+
+.section-pane {
+    position: absolute;
+    inset: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    overscroll-behavior-x: none;
+    touch-action: pan-y;
+    backface-visibility: hidden;
+    scrollbar-width: none;
+}
+
+/* Nested controls default to pan-x (inputs, tab strips, toggle groups, calendar
+   cells). That lets iOS eat the gesture and Android switch inner tabs instead
+   of paging. Force pan-y so horizontal motion belongs to the shell. */
+.section-pane *,
+.section-shell .mud-tabs-tabbar-wrapper,
+.section-shell .mud-tabs-tabbar-content {
+    touch-action: pan-y;
+}
+
+.section-shell .mud-tabs-tabbar-wrapper,
+.section-shell .mud-tabs-tabbar-content {
+    overflow-x: hidden;
+}
+
+.section-pane::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+}
+
+/* Add-page autocompletes open above the field (see PopoverClass). Inline
+   max-height from MudBlazor is 300px and gets clipped by the keypad; this
+   wins and makes the list itself the scroller. */
+.mud-popover.app-autocomplete-list {
+    max-height: min(40dvh, 200px) !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+    touch-action: pan-y;
+    -webkit-overflow-scrolling: touch;
+}
+
+html.app-android .mud-popover.app-autocomplete-list {
+    position: fixed !important;
+    z-index: 1400 !important;
+}
+
+.section-pane:has(.home-footer),
+.section-pane:has(.settings-footer),
+.section-pane:has(.mileage-add-footer),
+.section-pane:has(.status-footer-container) {
+    padding-bottom: 56px;
+}
+
+.section-shell.is-settling .section-pane {
+    transition: transform 280ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.section-pane:not(.is-current) {
+    pointer-events: none;
+}
+
+.section-pane:not(.is-current) .home-footer,
+.section-pane:not(.is-current) .settings-footer,
+.section-pane:not(.is-current) .mileage-add-footer,
+.section-pane:not(.is-current) .status-footer-container,
+.section-shell.is-settling .home-footer,
+.section-shell.is-settling .settings-footer,
+.section-shell.is-settling .mileage-add-footer,
+.section-shell.is-settling .status-footer-container {
+    visibility: hidden;
+    pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .section-shell.is-settling .section-pane {
+        transition: none !important;
+    }
 }
 
 /* Top nav: keep icons on one row. Compact sizes apply only when the bar is crowded. */
@@ -181,7 +364,7 @@ h1:focus {
         position: sticky;
         top: 0;
         height: env(safe-area-inset-top);
-        background-color: #f7f7f7;
+        background-color: var(--mud-palette-primary, #594AE2);
         width: 100%;
         z-index: 1;
     }
@@ -198,10 +381,10 @@ h1:focus {
     left: 0;
     right: 0;
     height: 52px;
-    background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+    background: var(--mud-palette-surface, #f8f9fa);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px); /* Safari support */
-    border-top: 1px solid #d0d4d8;
+    border-top: 1px solid var(--mud-palette-lines-default, #d0d4d8);
     box-shadow: 0 -4px 12px rgba(0,0,0,0.05);
     z-index: 1000;
     display: flex;
@@ -209,7 +392,7 @@ h1:focus {
     justify-content: space-evenly;
     padding: 0 20px;
     font-size: 13px;
-    color: #444;
+    color: var(--mud-palette-text-primary, #444);
     font-weight: 500;
     font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
@@ -221,8 +404,8 @@ h1:focus {
 
     .home-footer .divider {
         height: 28px;
-        border-left: 1px solid rgba(0,0,0,0.1);
-        border-right: 1px solid rgba(0,0,0,0.1);
+        border-left: 1px solid var(--mud-palette-lines-default, rgba(0,0,0,0.1));
+        border-right: 1px solid var(--mud-palette-lines-default, rgba(0,0,0,0.1));
         margin: 0 16px;
     }
 
@@ -265,15 +448,15 @@ h1:focus {
     left: 0;
     right: 0;
     height: 48px;
-    background-color: #f5f5f5;
-    border-top: 1px solid #ddd;
+    background-color: var(--mud-palette-surface, #f5f5f5);
+    border-top: 1px solid var(--mud-palette-lines-default, #ddd);
     z-index: 1000;
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 0 12px;
-    font-size: 12.5px;
-    color: #555;
+    font-size: 13px;
+    color: var(--mud-palette-text-primary, #212121);
     font-family: system-ui, sans-serif;
 }
 
@@ -286,15 +469,15 @@ h1:focus {
     }
 
     .mileage-add-footer strong.vehicle {
-        color: #0066cc;
+        color: var(--mud-palette-info, #0066cc);
     }
 
     .mileage-add-footer strong.economy {
-        color: #27ae60;
+        color: var(--mud-palette-success, #27ae60);
     }
 
     .mileage-add-footer .unit {
-        color: #555; /* your green color */
+        color: var(--mud-palette-text-secondary, #555);
         font-size:smaller;
     }
 
@@ -304,20 +487,25 @@ h1:focus {
     bottom: 0;
     left: 0;
     width: 100%;
-    height: 40px;
-    background-color: #f5f5f5;
-    border-top: 1px solid #ddd;
+    height: 44px;
+    background-color: var(--mud-palette-surface, #f5f5f5);
+    border-top: 1px solid var(--mud-palette-lines-default, #ddd);
     z-index: 1000;
     display: flex;
     align-items: center;
     padding: 0 16px;
-    font-size: 12px;
-    color: #555;
+    font-size: 14px;
+    color: var(--mud-palette-text-primary, #212121);
     box-sizing: border-box;
 }
 
     .settings-footer span {
         white-space: nowrap;
+    }
+
+    .settings-footer strong {
+        font-weight: 700;
+        color: var(--mud-palette-text-primary, #212121);
     }
 
     .settings-footer .version,
@@ -328,3 +516,186 @@ h1:focus {
     .settings-footer .spacer {
         flex-grow: 1;
     }
+
+.text-muted {
+    color: var(--mud-palette-text-secondary, #757575);
+}
+
+.app-dark .text-muted {
+    color: var(--mud-palette-text-primary);
+    opacity: 0.82;
+}
+
+.app-dark .mileage-add-footer .unit {
+    color: var(--mud-palette-text-primary);
+    opacity: 0.85;
+}
+
+/* Appearance theme picker — keep hint text readable in dark mode */
+.theme-option-hint {
+    font-size: 0.875rem;
+    line-height: 1.4;
+    color: var(--mud-palette-text-primary);
+    opacity: 0.72;
+}
+
+.app-dark .theme-option-hint {
+    opacity: 0.92;
+    color: var(--mud-palette-text-primary);
+}
+
+/* Shahenshahi calendar — original light grid; bluish only in dark mode */
+.shenshai-calendar {
+    width: 100%;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #ffffff;
+}
+
+.shenshai-calendar-header {
+    display: flex;
+    background: radial-gradient(circle, #8FD4FA 0%, #27ADF5 100%);
+}
+
+.shenshai-calendar-dow {
+    flex: 1;
+    padding: 8px 0;
+    text-align: center;
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: bold;
+    border-right: 0.5px solid #ffffff33;
+}
+
+.shenshai-calendar-row {
+    display: flex;
+    border-bottom: 0.5px solid #e0e0e0;
+}
+
+.shenshai-calendar-cell {
+    flex: 1;
+    height: 70px;
+    padding: 4px 2px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    background-color: #ffffff;
+    border-right: 1px solid #f0f0f0;
+    border-bottom: 1px solid #f0f0f0;
+    cursor: pointer;
+    box-sizing: border-box;
+}
+
+.shenshai-calendar-cell.selected {
+    background: radial-gradient(circle, #6A5ACD 0%, #483D8B 100%);
+    color: #ffffff;
+}
+
+.shenshai-calendar-cell.empty {
+    cursor: default;
+    background-color: #f9f9f9;
+    border-right: 0.5px solid #e0e0e066;
+}
+
+.shenshai-roj {
+    font-size: 9px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #757575;
+    text-align: center;
+    line-height: 1.1;
+    word-break: break-word;
+    overflow-wrap: break-word;
+}
+
+.shenshai-calendar-cell.selected .shenshai-roj {
+    color: rgba(255, 255, 255, 0.95);
+}
+
+.shenshai-day {
+    font-weight: 900;
+    line-height: 1;
+    color: #424242;
+}
+
+.shenshai-calendar-cell.selected .shenshai-day {
+    color: #FFD700;
+}
+
+.shenshai-moon {
+    font-size: 11px;
+    line-height: 1;
+    margin: -2px 0;
+}
+
+.app-dark .shenshai-calendar {
+    border-color: #27ADF5;
+    background: #D7F0FC;
+}
+
+.app-dark .shenshai-calendar-header {
+    background: radial-gradient(circle, #2C5282 0%, #1A365D 100%);
+}
+
+.app-dark .shenshai-calendar-row {
+    border-bottom-color: #7EC8EE;
+}
+
+.app-dark .shenshai-calendar-cell {
+    background-color: #D7F0FC;
+    border-right-color: #7EC8EE;
+    border-bottom-color: #7EC8EE;
+}
+
+.app-dark .shenshai-calendar-cell.empty {
+    background-color: #A8DCF7;
+    border-right-color: #7EC8EE;
+}
+
+.app-dark .shenshai-roj {
+    color: #1565A0;
+}
+
+.app-dark .shenshai-day {
+    color: #0D47A1;
+}
+
+.app-dark .shenshai-calendar-cell.selected {
+    background: radial-gradient(circle, #6A5ACD 0%, #483D8B 100%);
+    color: #ffffff;
+}
+
+.app-dark .shenshai-calendar-cell.selected .shenshai-roj {
+    color: rgba(255, 255, 255, 0.95);
+}
+
+.app-dark .shenshai-calendar-cell.selected .shenshai-day {
+    color: #FFD700;
+}
+
+.app-dark .shenshai-moon {
+    font-size: 15px;
+    filter: drop-shadow(0 0 2px rgba(13, 71, 161, 0.55));
+}
+
+.app-dark .shenshai-calendar-cell.selected .shenshai-moon {
+    filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.85));
+}
+
+/* Expense / Mileage view row dates — primary in light, high-contrast in dark */
+.view-row-date {
+    font-size: 0.95rem !important;
+    font-weight: 700 !important;
+    line-height: 1.35;
+    letter-spacing: 0.2px;
+    color: var(--mud-palette-primary) !important;
+}
+
+.app-dark .view-row-date {
+    color: var(--mud-palette-text-primary, #f5f5f5) !important;
+    opacity: 1;
+}

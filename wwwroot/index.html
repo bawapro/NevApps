@@ -19,7 +19,7 @@
             align-items: center;
             gap: 20px;
             height: 100vh;
-            background: #ffffff; /* your default white */
+            background: #ffffff;
             font-family: "Roboto", sans-serif;
         }
 
@@ -60,6 +60,16 @@
                 opacity: 1;
             }
         }
+
+        @media (prefers-color-scheme: dark) {
+            .loading-container {
+                background: #121212;
+            }
+
+            .loading-text {
+                color: #cfcfcf;
+            }
+        }
     </style>
 </head>
 
@@ -85,8 +95,28 @@
         <span class="dismiss">🗙</span>
     </div>
 
+    <script>
+        (function () {
+            var ua = navigator.userAgent || "";
+            var ios = /iP(hone|ad|od)/.test(ua)
+                || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+            var android = /Android/i.test(ua);
+            if (android) document.documentElement.classList.add("app-android");
+            if (!ios) return;
+            var meta = document.querySelector('meta[name="viewport"]');
+            if (meta) {
+                meta.setAttribute("content",
+                    meta.getAttribute("content") + ", interactive-widget=resizes-content");
+            }
+            if (!window.visualViewport) return;
+            var pin = function () { window.scrollTo(0, 0); };
+            visualViewport.addEventListener("scroll", pin);
+            visualViewport.addEventListener("resize", pin);
+        })();
+    </script>
     <script src="_framework/blazor.webview.js" autostart="false"></script>
     <script src="_content/MudBlazor/MudBlazor.min.js"></script>
+    <script src="js/section-swipe.js"></script>
 
 </body>
 

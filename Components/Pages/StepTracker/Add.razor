@@ -28,11 +28,11 @@
         display: flex;
         justify-content: space-around;
         align-items: center;
-        background-color: #1e1e1e; /* Dark theme strip */
+        background-color: var(--mud-palette-surface, #1e1e1e);
         padding: 8px 12px;
-        font-size: 11px;
+        font-size: 12px;
         font-family: monospace;
-        border-top: 1px solid #333; /* Border moves to the top now */
+        border-top: 1px solid var(--mud-palette-lines-default, #333);
 
         /* Locks it to the absolute bottom of the screen */
         position: fixed;
@@ -50,11 +50,12 @@
     }
 
     .status-label {
-        color: #aaa;
+        color: var(--mud-palette-text-primary, #eee);
+        opacity: 0.8;
     }
 
     .status-divider {
-        color: #444;
+        color: var(--mud-palette-text-secondary, #888);
         font-weight: bold;
     }
 
@@ -259,7 +260,6 @@
                   Spacing="3">  <!-- Increased spacing a bit -->
 
             <MudText Typo="Typo.h3"
-                     Color="Color.Dark"
                      Style="font-family: monospace;
             font-weight: 700;
             letter-spacing: 0.08em;">

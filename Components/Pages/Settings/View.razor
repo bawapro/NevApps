@@ -75,8 +75,15 @@
         box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
         <DB/>
     </MudExpansionPanel>
+    <MudExpansionPanel Text="Themes"
+                       Class="mb-4 rounded-lg"
+                       Style="border-left: 6px solid #D81B60; font-weight:bold;
+        background-color: var(--mud-palette-surface);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
+        <ThemeSelection/>
+    </MudExpansionPanel>
 </MudExpansionPanels>
-<MudStack Class="py-3">
+<MudStack Class="py-3 mb-2">
     <MudButton OnClick="OnSubmit"
                Color="Color.Primary"
                Size="Size.Small"

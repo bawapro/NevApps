@@ -39,14 +39,12 @@
              Hover="true"
              Bordered="true"
              Striped="true"
-             HorizontalScrollbar="true"
              Filterable="true"
              FilterMode="DataGridFilterMode.ColumnFilterMenu"
              FilterCaseSensitivity="DataGridFilterCaseSensitivity.CaseInsensitive"
              QuickFilter="QuickFilterFunc"
              Elevation="0"
-             RowsPerPage="10"
-             Style="overflow-x: auto;">
+             RowsPerPage="10">
     <ToolBarContent>
         <MudTextField Value="searchText"
                       ValueChanged="@(async (string v) =>
@@ -180,9 +178,8 @@
                           Class="py-2">
                     <MudStack Row="true"
                               Justify="Justify.SpaceBetween">
-                        <MudText Typo="Typo.caption"
-                                 Color="Color.Primary">
-                            <b>@context.Item.Date.ToString("ddd, MMM dd, yyyy")</b>
+                        <MudText Class="view-row-date">
+                            @context.Item.Date.ToString("ddd, MMM dd, yyyy")
                         </MudText>
 
                         <MudText Typo="Typo.caption"
