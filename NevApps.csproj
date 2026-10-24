@@ -64,7 +64,15 @@
         <ApplicationTitle>NevApps</ApplicationTitle>
 
         <!-- App Identifier -->
-        <ApplicationId>com.companyname.nevapps</ApplicationId>
+        <ApplicationId>com.companyname.nevappsa</ApplicationId>
+
+        <AppIconForeground Condition="$([System.String]::Copy('$(ApplicationId)').Contains('nevappsb'))">Resources\AppIcon\appiconfg-red.svg</AppIconForeground>
+        <AppIconColor Condition="$([System.String]::Copy('$(ApplicationId)').Contains('nevappsb'))">#F44336</AppIconColor>
+        <AppIconForeground Condition="$([System.String]::Copy('$(ApplicationId)').Contains('nevappsa'))">Resources\AppIcon\appiconfg-green.svg</AppIconForeground>
+        <AppIconColor Condition="$([System.String]::Copy('$(ApplicationId)').Contains('nevappsa'))">#4CAF50</AppIconColor>
+        <AppIconForeground Condition="'$(AppIconForeground)' == ''">Resources\AppIcon\appiconfg.svg</AppIconForeground>
+        <AppIconColor Condition="'$(AppIconColor)' == ''">#512BD4</AppIconColor>
+
         <!-- Versions -->
         <Version>2.5.0</Version>
         <ApplicationDisplayVersion>2.5.0</ApplicationDisplayVersion>
