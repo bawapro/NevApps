@@ -64,7 +64,7 @@
         <ApplicationTitle>NevApps</ApplicationTitle>
 
         <!-- App Identifier -->
-        <ApplicationId>com.companyname.nevappsa</ApplicationId>
+        <ApplicationId>com.companyname.nevapps</ApplicationId>
 
         <AppIconForeground Condition="$([System.String]::Copy('$(ApplicationId)').Contains('nevappsb'))">Resources\AppIcon\appiconfg-red.svg</AppIconForeground>
         <AppIconColor Condition="$([System.String]::Copy('$(ApplicationId)').Contains('nevappsb'))">#F44336</AppIconColor>
