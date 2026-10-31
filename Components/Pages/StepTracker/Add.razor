@@ -1,8 +1,8 @@
 @page "/steps-tracker/add"
-@using NevApps.Interfaces
 @inject IStepTrackerService StepTrackerService
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
+@using NevApps.Interfaces
 @implements IDisposable
 <style>
     .metric-value {
@@ -29,10 +29,12 @@
         justify-content: space-around;
         align-items: center;
         background-color: var(--mud-palette-surface, #1e1e1e);
-        padding: 8px 12px;
+        padding: 8px 12px var(--app-bottom-inset, 0px);
         font-size: 12px;
         font-family: monospace;
         border-top: 1px solid var(--mud-palette-lines-default, #333);
+        box-sizing: border-box;
+        min-height: calc(56px + var(--app-bottom-inset, 0px));
 
         /* Locks it to the absolute bottom of the screen */
         position: fixed;
@@ -45,8 +47,10 @@
 
     .status-item {
         display: flex;
-        gap: 4px;
+        flex-direction: column;
         align-items: center;
+        gap: 2px;
+        text-align: center;
     }
 
     .status-label {
@@ -71,7 +75,7 @@
 </style>
 <div class="status-footer-container">
     <div class="status-item">
-        <span class="status-label">Location:</span>
+        <span class="status-label">Location</span>
         <span class="status-value @(isLocationAlways ? "status-on" : "status-off")">
             @(isLocationAlways ? "ALWAYS" : "WHILE USING")
         </span>
@@ -80,7 +84,7 @@
     <div class="status-divider">|</div>
 
     <div class="status-item">
-        <span class="status-label">Motion:</span>
+        <span class="status-label">Motion</span>
         <span class="status-value @(isMotionEnabled ? "status-on" : "status-off")">
             @(isMotionEnabled ? "ON" : "OFF")
         </span>
@@ -89,7 +93,7 @@
     <div class="status-divider">|</div>
 
     <div class="status-item">
-        <span class="status-label">Background:</span>
+        <span class="status-label">Background</span>
         <span class="status-value @(isBackgroundEnabled ? "status-on" : "status-off")">
             @(isBackgroundEnabled ? "ACTIVE" : "DISABLED")
         </span>
@@ -111,7 +115,7 @@
     <MudText Typo="Typo.subtitle1"
              Style="font-style: italic; opacity: 0.85; letter-spacing: 0.3px;"
              Class="ml-2 mt-1">
-        Track your steps/distance traveled.
+        Track your steps-distance traveled.
     </MudText>
 </MudContainer>
 <MudContainer MaxWidth="MaxWidth.Small"
@@ -317,9 +321,9 @@
 </style>
 
 @code {
-    private bool isActive = false, isMotionEnabled = false, isLocationAlways = false;
-    private bool isBackgroundEnabled = false;
-    private bool isPaused = false;
+    private bool isActive, isMotionEnabled, isLocationAlways;
+    private bool isBackgroundEnabled;
+    private bool isPaused;
 
     protected override void OnInitialized()
     {
@@ -372,18 +376,18 @@
         }
         else
         {
-            string instructions = DeviceInfo.Platform == DevicePlatform.Android
+            var instructions = DeviceInfo.Platform == DevicePlatform.Android
                 ? "1. Change Location permission to <b>'Allow all the time'</b>.<br/>2. Enable <b>Background Activity</b> under Battery usage."
                 : "1. Change Location permission to <b>'Always'</b>.<br/>2. Turn on <b>Background App Refresh</b>.<br/>" +
                   "3. Ensure <b>Motion & Fitness</b> is turned ON.";
 
-            bool? runSettingsSetup = await DialogService.ShowMessageBoxAsync(
-                title: "Enable Background Services",
-                markupMessage: new Microsoft.AspNetCore.Components.MarkupString(
+            var runSettingsSetup = await DialogService.ShowMessageBoxAsync(
+                "Enable Background Services",
+                new MarkupString(
                     "To ensure seamless tracking, please complete these manual adjustments inside phone Settings:<br/><br/>" +
                     $"{instructions}<br/><br/>"
                 ),
-                yesText: "Open Settings",
+                "Open Settings",
                 cancelText: "Cancel"
             );
 
@@ -404,10 +408,10 @@
         var activityManager = (Android.App.ActivityManager)context.GetSystemService(Android.Content.Context.ActivityService);
         if (activityManager != null && activityManager.IsBackgroundRestricted)
         {
-            return false;
+        return false;
         }
 
-        // Not hard-restricted; treat background activity as allowed.
+        // Fallback: If allowed via toggle (like your Pixel screenshot image_f5f2a5.png), pass true!
         return true;
 #else
         return true;
@@ -417,17 +421,17 @@
     private async Task<bool> IsMotionEnabled()
     {
         // 1. Initialize a fallback status for iOS so the final 'if' statement doesn't break
-        PermissionStatus motionStatus = PermissionStatus.Granted;
+        var motionStatus = PermissionStatus.Granted;
 
 #if ANDROID
         // 2. This code ONLY executes and looks for the custom class when building for Android
         motionStatus = await Permissions.CheckStatusAsync<ActivityRecognitionPermission>();
 
         if (motionStatus == PermissionStatus.Granted)
-            isMotionEnabled = true;
+        isMotionEnabled = true;
 
         else if (motionStatus != PermissionStatus.Granted)
-            motionStatus = await Permissions.RequestAsync<ActivityRecognitionPermission>();
+        motionStatus = await Permissions.RequestAsync<ActivityRecognitionPermission>();
 #elif IOS
         // 3. This code ONLY executes when building for iOS
         // We query Apple's native CoreMotion permission engine directly
@@ -435,39 +439,39 @@
 
         if (motionAuthorization == CoreMotion.CMAuthorizationStatus.Authorized)
         {
-        motionStatus = PermissionStatus.Granted;
-        isMotionEnabled = true;
+            motionStatus = PermissionStatus.Granted;
+            isMotionEnabled = true;
         }
         else if (motionAuthorization == CoreMotion.CMAuthorizationStatus.Denied ||
-        motionAuthorization == CoreMotion.CMAuthorizationStatus.Restricted)
+                 motionAuthorization == CoreMotion.CMAuthorizationStatus.Restricted)
         {
-        motionStatus = PermissionStatus.Denied;
+            motionStatus = PermissionStatus.Denied;
         }
         else
         {
-        try
-        {
-        using var pedometer = new CoreMotion.CMPedometer();
-        var tcs = new TaskCompletionSource<PermissionStatus>();
+            try
+            {
+                using var pedometer = new CoreMotion.CMPedometer();
+                var tcs = new TaskCompletionSource<PermissionStatus>();
 
-        // Querying a tiny window of time forces iOS to trigger the native prompt
-        pedometer.QueryPedometerData(Foundation.NSDate.Now.AddSeconds(-1), Foundation.NSDate.Now, (data, error) =>
-        {
-        // The moment the user acts on the pop-up, this callback fires
-        var updatedStatus = CoreMotion.CMPedometer.AuthorizationStatus;
-        tcs.SetResult(updatedStatus == CoreMotion.CMAuthorizationStatus.Authorized
-        ? PermissionStatus.Granted
-        : PermissionStatus.Denied);
-        });
+                // Querying a tiny window of time forces iOS to trigger the native prompt
+                pedometer.QueryPedometerData(Foundation.NSDate.Now.AddSeconds(-1), Foundation.NSDate.Now, (data, error) =>
+                {
+                    // The moment the user acts on the pop-up, this callback fires
+                    var updatedStatus = CoreMotion.CMPedometer.AuthorizationStatus;
+                    tcs.SetResult(updatedStatus == CoreMotion.CMAuthorizationStatus.Authorized
+                        ? PermissionStatus.Granted
+                        : PermissionStatus.Denied);
+                });
 
-        // Wait for the user to click "Allow" or "Don't Allow" on the pop-up
-        motionStatus = await tcs.Task;
-        }
-        catch
-        {
-        // Fallback safety
-        motionStatus = PermissionStatus.Denied;
-        }
+                // Wait for the user to click "Allow" or "Don't Allow" on the pop-up
+                motionStatus = await tcs.Task;
+            }
+            catch
+            {
+                // Fallback safety
+                motionStatus = PermissionStatus.Denied;
+            }
         }
 
 #endif
@@ -484,7 +488,7 @@
         if (isActive)
         {
             isPaused = false;
-            StepTrackerService.StartTracking(isResuming: false);
+            StepTrackerService.StartTracking(false);
         }
         else
         {
@@ -501,21 +505,44 @@
     private void PauseSession()
     {
         isPaused = true;
-        StepTrackerService.PauseTracking();
+        StepTrackerService.PauseTracking(); // Pause hardware polling hooks
     }
 
     private void ResumeSession()
     {
         isPaused = false;
-        StepTrackerService.StartTracking(isResuming: true);
+        StepTrackerService.StartTracking(true);
     }
 
-    private void RefreshUI(int steps) => InvokeAsync(StateHasChanged);
-    private void RefreshUI(double distance) => InvokeAsync(StateHasChanged);
-    private void RefreshUI(bool isTracking) => InvokeAsync(StateHasChanged);
-    private void RefreshUI(char status) => InvokeAsync(StateHasChanged);
-    private void RefreshUI(string placeName) => InvokeAsync(StateHasChanged);
-    private void RefreshUI() => InvokeAsync(StateHasChanged);
+    private void RefreshUI(int steps)
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void RefreshUI(double distance)
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void RefreshUI(bool isTracking)
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void RefreshUI(char status)
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void RefreshUI(string placeName)
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void RefreshUI()
+    {
+        InvokeAsync(StateHasChanged);
+    }
 
     public void Dispose()
     {

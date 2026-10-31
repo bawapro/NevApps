@@ -1,0 +1,166 @@
+﻿@if (isLoading)
+{
+    <div class="d-flex justify-center my-8">
+        <MudProgressCircular Indeterminate="true"
+                             Color="Color.Primary"
+                             Size="Size.Small"/>
+    </div>
+}
+else
+{
+    <MudDialog>
+        <TitleContent>
+            <MudText Typo="Typo.h6">@Title</MudText>
+        </TitleContent>
+
+        <DialogContent>
+            @if (isView)
+            {
+                <MudText Typo="Typo.subtitle2"
+                         Style="font-style:italic">Developer Reply
+                </MudText>
+                <MudInput @bind-Value="@devFeedback"
+                          T="string"
+                          Typo="Typo.body2"
+                          Style="font-weight:bold; color: var(--mud-palette-primary);"
+                          Margin="Margin.Dense"
+                          Error="true"
+                          FullWidth="true"
+                          ShrinkLabel="true"
+                          Sizing="InputSizing.Auto"
+                          Disabled="isView"/>
+            }
+            <MudTextField @bind-Value="feedback"
+                          T="string"
+                          Variant="Variant.Outlined"
+                          Typo="Typo.body1"
+                          Lines="6"
+                          MaxLength="1500"
+                          Counter="1500"
+                          Sizing="InputSizing.Auto"
+                          RequiredError="Message is required"
+                          FullWidth="true"
+                          Immediate="true"
+                          AutoFocus="true"
+                          Disabled="isView"
+                          Placeholder="Your feedback is appreciated! Please note, you can submit this ONCE only. Feel free to take time using this app and post whenever you’re ready."/>
+
+        </DialogContent>
+
+        <DialogActions>
+            <MudButton OnClick="Cancel"
+                       Color="Color.Default">Close
+            </MudButton>
+            <MudButton OnClick="Submit"
+                       Variant="Variant.Filled"
+                       Color="Color.Warning"
+                       Disabled="isFeedbackSent || isSubmitting">
+                @if (isSubmitting)
+                {
+                    <MudProgressCircular Indeterminate="true"
+                                         Color="Color.Primary"
+                                         Size="Size.Small"/>
+                }
+                else
+                {
+                    <MudText>Send</MudText>
+                }
+            </MudButton>
+        </DialogActions>
+    </MudDialog>
+}
+
+@code {
+
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public string Title { get; set; } = "";
+    [Parameter] public bool isView { get; set; }
+
+    bool isFeedbackSent, isLoading, isSubmitting;
+    private string devFeedback { get; set; } = string.Empty;
+    private string feedback = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        isLoading = true;
+        try
+        {
+            var userFeedback = await SettingsService.GetUserFeedbackAsync();
+
+            if (userFeedback.Length > 0)
+            {
+                isFeedbackSent = true;
+                feedback = userFeedback;
+            }
+
+            var reply = await SettingsService.GetDevFeedbackAsync();
+            if (!string.IsNullOrWhiteSpace(reply?.SettingValue))
+            {
+                devFeedback = reply.SettingValue;
+                isView = true;
+                isFeedbackSent = true;
+                if (reply.IsEnabled == 1)
+                    await SettingsService.UpdateFeedbackAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            LoggerService.Log($"OnInitializedAsync - {GetType().FullName}", ex);
+            Snackbar.Add(Constants.OnLoadErrorMessage, Severity.Error);
+        }
+
+        isLoading = false;
+        StateHasChanged();
+    }
+
+    private async Task Submit()
+    {
+        isSubmitting = true;
+
+        var payload = new
+        {
+            UserId = await SettingsService.GetUserIdAsync() + $"_{DateTime.Now:yyyyMMddHHmmss}",
+            Message = feedback.Trim(),
+            AppVersion = AppInfo.VersionString ?? "unknown",
+            Platform = DeviceInfo.Platform.ToString(),
+            Version = DeviceInfo.VersionString,
+            DeviceInfo.Manufacturer,
+            DeviceInfo.Model,
+            Idiom = DeviceInfo.Idiom.ToString(),
+            Density = DeviceDisplay.MainDisplayInfo.Density.ToString("F2"),
+            ScreenWidth = DeviceDisplay.MainDisplayInfo.Width.ToString(),
+            ScreenHeight = DeviceDisplay.MainDisplayInfo.Height.ToString()
+        };
+
+        try
+        {
+            var response = await NevAPIService.SendFeedbackAsync(payload);
+
+            if (response.IsSuccessStatusCode)
+            {
+                Snackbar.Add("Feedback sent!", Severity.Success);
+                await SettingsService.SaveFeedbackAsync(payload.UserId, feedback);
+                feedback = "";
+            }
+            else
+            {
+                Snackbar.Add("Failed to send", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            LoggerService.Log("Feedback", ex);
+            Snackbar.Add("Failed to send", Severity.Error);
+        }
+
+        isSubmitting = false;
+        MudDialog.Close(DialogResult.Ok(feedback));
+    }
+
+    private void Cancel()
+    {
+        MudDialog.Cancel();
+    }
+
+
+}

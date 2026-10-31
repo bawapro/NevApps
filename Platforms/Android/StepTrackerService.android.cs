@@ -12,12 +12,23 @@ public class ActivityRecognitionPermission : Permissions.BasePlatformPermission
 
 public class StepTrackerService : IStepTrackerService
 {
+    private Timer? _backgroundTimer;
+    private int _elapsedSeconds = 0;
+    private DateTime _lastGeocodeTime = DateTime.MinValue;
+    private Location? _lastLocation;
+    private DateTime _lastMovementTime = DateTime.Now;
+    private int _stepsAccumulatedBeforePause = 0;
+
+    public StepTrackerService()
+    {
+        Instance = this;
+    }
+
     public bool IsTracking { get; private set; }
     public int CurrentSteps { get; private set; }
     public double TotalDistanceKm { get; private set; }
     public char StatusCode { get; private set; } = 'R';
     public string CurrentPlaceName { get; private set; } = "Locating...";
-    private int _elapsedSeconds = 0;
     public int TotalSeconds => _elapsedSeconds;
 
     public static StepTrackerService? Instance { get; private set; }
@@ -28,17 +39,6 @@ public class StepTrackerService : IStepTrackerService
     public event Action<char>? OnStatusUpdated;
     public event Action<string>? OnPlaceNameChanged;
     public event Action? OnTimerTicked;
-
-    private Timer? _backgroundTimer;
-    private Location? _lastLocation;
-    private DateTime _lastMovementTime = DateTime.Now;
-    private DateTime _lastGeocodeTime = DateTime.MinValue;
-    private int _stepsAccumulatedBeforePause = 0;
-
-    public StepTrackerService()
-    {
-        Instance = this;
-    }
 
     public void StartTracking(bool isResuming = false)
     {
@@ -128,7 +128,7 @@ public class StepTrackerService : IStepTrackerService
     {
         if (!IsTracking || newLocation.Accuracy > 15) return;
 
-        if (CurrentSteps > 0) 
+        if (CurrentSteps > 0)
             _lastMovementTime = DateTime.Now;
 
         CheckIdleState();

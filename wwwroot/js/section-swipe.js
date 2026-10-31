@@ -73,13 +73,13 @@ window.sectionSwipe = (function () {
             state.swiped = false;
         };
 
-        el.addEventListener("touchstart", onStart, { capture: true, passive: true });
-        el.addEventListener("touchmove", onMove, { capture: true, passive: false });
-        el.addEventListener("touchend", onEnd, { capture: true, passive: true });
-        el.addEventListener("touchcancel", onEnd, { capture: true, passive: true });
+        el.addEventListener("touchstart", onStart, {capture: true, passive: true});
+        el.addEventListener("touchmove", onMove, {capture: true, passive: false});
+        el.addEventListener("touchend", onEnd, {capture: true, passive: true});
+        el.addEventListener("touchcancel", onEnd, {capture: true, passive: true});
         el.addEventListener("click", onClick, true);
 
-        el[key] = { onStart: onStart, onMove: onMove, onEnd: onEnd, onClick: onClick };
+        el[key] = {onStart: onStart, onMove: onMove, onEnd: onEnd, onClick: onClick};
     }
 
     function detach(el) {
@@ -93,5 +93,5 @@ window.sectionSwipe = (function () {
         delete el[key];
     }
 
-    return { attach: attach, detach: detach };
+    return {attach: attach, detach: detach};
 })();

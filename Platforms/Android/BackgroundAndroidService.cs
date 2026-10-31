@@ -3,7 +3,7 @@ using Android.Content;
 using Android.OS;
 using AndroidX.Core.App;
 using Plugin.Maui.Pedometer;
-using Android.Locations; 
+using Android.Locations;
 
 namespace NevApps;
 
@@ -15,10 +15,10 @@ public class BackgroundAndroidService : Service, ILocationListener
 
     private int? _initialStepBaseline;
     private LocationManager? _locationManager;
+    private PowerManager.WakeLock _wakeLock;
 
     public override IBinder? OnBind(Intent? intent) => null;
-    private PowerManager.WakeLock _wakeLock;
-    
+
     public override StartCommandResult OnStartCommand(Intent? intent, StartCommandFlags flags, int startId)
     {
         CreateNotificationChannel();
@@ -33,7 +33,7 @@ public class BackgroundAndroidService : Service, ILocationListener
         StartForeground(NotificationId, notification);
 
         InitializeTracking();
-        
+
         var powerManager = (PowerManager)GetSystemService(PowerService);
         if (powerManager != null && (_wakeLock == null || !_wakeLock.IsHeld))
         {
@@ -41,6 +41,7 @@ public class BackgroundAndroidService : Service, ILocationListener
             _wakeLock = powerManager.NewWakeLock(WakeLockFlags.Partial, "StepTracker:WakeLockTag");
             _wakeLock.Acquire(); // Forces Android CPU to stay awake for your timer loops
         }
+
         return StartCommandResult.Sticky;
     }
 
@@ -52,24 +53,24 @@ public class BackgroundAndroidService : Service, ILocationListener
 
         // 2. Start Native Android Location Hardware Loop
         _locationManager = (LocationManager)GetSystemService(Context.LocationService)!;
-        
+
         try
         {
             // Request updates every 2000ms (2 seconds) OR every 2 meters walked
             _locationManager.RequestLocationUpdates(
-                LocationManager.GpsProvider, 
-                2000, 
-                2f, 
+                LocationManager.GpsProvider,
+                2000,
+                2f,
                 this);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
             /* Handle missing runtime permissions gracefully */
         }
     }
 
     // NATIVE INTERFACE CALLBACKS: Triggers automatically on changes
-   public void OnLocationChanged(Android.Locations.Location location)
+    public void OnLocationChanged(Android.Locations.Location location)
     {
         if (location == null) return;
 
@@ -79,7 +80,7 @@ public class BackgroundAndroidService : Service, ILocationListener
         }
 
         var locationAgeMs = DateTimeOffset.Now.ToUnixTimeMilliseconds() - location.Time;
-        if (locationAgeMs > 5000) 
+        if (locationAgeMs > 5000)
         {
             return; // Drop the point if it's older than 5 seconds
         }
@@ -95,43 +96,7 @@ public class BackgroundAndroidService : Service, ILocationListener
         };
 
         // Only stream the coordinate data if it survived both shields!
-        MainThread.BeginInvokeOnMainThread(() =>
-        {
-            StepTrackerService.Instance?.HandleLocationUpdate(mauiLocation);
-        });
-        
-        /* Option 2: to calculate distance instead of location
-         private Android.Locations.Location _lastLocation;
-           private double _totalDistanceMeters = 0;
-           
-           public void OnLocationChanged(Android.Locations.Location location)
-           {
-               // Guard 1: Ignore inaccurate data points (e.g., if accuracy radius is worse than 15 meters)
-               if (location.HasAccuracy && location.Accuracy > 15) 
-               {
-                   return; 
-               }
-           
-               if (_lastLocation != null)
-               {
-                   // Calculate the straight-line distance between the previous point and current point
-                   float distanceToNewPoint = _lastLocation.DistanceTo(location);
-           
-                   // Guard 2: Prevent GPS Jitter
-                   // If you move less than 1 meter or are moving at an impossible speed for walking, ignore it
-                   if (distanceToNewPoint > 1.0)
-                   {
-                       _totalDistanceMeters += distanceToNewPoint;
-                       
-                       // Convert to kilometers and pass it up to your StepTrackerService
-                       double totalKm = _totalDistanceMeters / 1000.0;
-                       StepTrackerService.Instance?.UpdateDistanceFromHardware(totalKm);
-                   }
-               }
-           
-               _lastLocation = location;
-           }
-         */
+        MainThread.BeginInvokeOnMainThread(() => { StepTrackerService.Instance?.HandleLocationUpdate(mauiLocation); });
     }
 
     private void OnPedometerReadingChanged(object? sender, PedometerData e)
@@ -154,19 +119,29 @@ public class BackgroundAndroidService : Service, ILocationListener
         {
             _locationManager.RemoveUpdates(this);
         }
+
         if (_wakeLock != null && _wakeLock.IsHeld)
         {
             _wakeLock.Release();
             _wakeLock = null;
         }
+
         _initialStepBaseline = null;
         base.OnDestroy();
     }
 
     // Required interface stub definitions for ILocationListener
-    public void OnProviderDisabled(string provider) { }
-    public void OnProviderEnabled(string provider) { }
-    public void OnStatusChanged(string? provider, Availability status, Bundle? extras) { }
+    public void OnProviderDisabled(string provider)
+    {
+    }
+
+    public void OnProviderEnabled(string provider)
+    {
+    }
+
+    public void OnStatusChanged(string? provider, Availability status, Bundle? extras)
+    {
+    }
 
     private void CreateNotificationChannel()
     {
@@ -180,5 +155,4 @@ public class BackgroundAndroidService : Service, ILocationListener
             manager.CreateNotificationChannel(channel);
         }
     }
-    
 }

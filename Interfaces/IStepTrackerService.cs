@@ -17,7 +17,7 @@ public interface IStepTrackerService
     event Action<int> OnStepCountChanged;
     event Action<double> OnDistanceChanged;
     event Action<bool> OnTrackingStateChanged;
-    event Action<char> OnStatusUpdated; 
+    event Action<char> OnStatusUpdated;
     event Action<string>? OnPlaceNameChanged;
     event Action? OnTimerTicked;
 }

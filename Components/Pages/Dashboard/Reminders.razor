@@ -1,56 +1,51 @@
 @inject ReminderService ReminderService
-<MudPaper Elevation="3"
-          Class="rounded-xl overflow-hidden"
-          Style="border: 1px solid var(--mud-palette-table-lines);">
-
-    <MudStack Row="true"
-              AlignItems="AlignItems.Center"
-              Justify="Justify.SpaceBetween"
-              Class="px-4 py-3 border-bottom">
+@if (upcomingReminders.Any())
+{
+    <MudPaper Elevation="3"
+              Class="rounded-xl overflow-hidden"
+              Style="border: 1px solid var(--mud-palette-table-lines);">
 
         <MudStack Row="true"
                   AlignItems="AlignItems.Center"
-                  Spacing="2">
-            <MudIcon Icon="@Icons.Material.Filled.Event"
-                     Color="Color.Primary"
-                     Size="Size.Medium"/>
-            <MudText Typo="Typo.subtitle1">
-                Upcoming Reminders
-            </MudText>
-            <MudChip T="string"
-                     Color="Color.Primary"
-                     Size="Size.Small"
-                     Variant="Variant.Outlined">
-                Next 7 Days
-            </MudChip>
+                  Justify="Justify.SpaceBetween"
+                  Class="px-4 py-3 border-bottom">
+
+            <MudStack Row="true"
+                      AlignItems="AlignItems.Center"
+                      Spacing="2">
+                <MudIcon Icon="@Icons.Material.Filled.Event"
+                         Color="Color.Primary"
+                         Size="Size.Medium"/>
+                <MudText Typo="Typo.subtitle1">
+                    Upcoming Reminders
+                </MudText>
+                <MudChip T="string"
+                         Color="Color.Primary"
+                         Size="Size.Small"
+                         Variant="Variant.Outlined">
+                    Next 7 Days
+                </MudChip>
+            </MudStack>
+
+            @* Clickable icon that goes to the full Reminders page *@
+            <MudTooltip Text="View all reminders">
+                <MudIconButton Icon="@Icons.Material.Filled.OpenInNew"
+                               Color="Color.Warning"
+                               Size="Size.Small"
+                               Href="/reminders"/>
+            </MudTooltip>
         </MudStack>
 
-        @* Clickable icon that goes to the full Reminders page *@
-        <MudIconButton Icon="@Icons.Material.Filled.OpenInNew"
-                       Color="Color.Warning"
-                       Size="Size.Small"
-                       Href="/reminders"
-                       Title="View all reminders"/>
-    </MudStack>
-
-    @if (upcomingReminders.Any())
-    {
         <MudList T="Reminder"
                  Dense="true"
                  Class="pa-0">
             @foreach (var (item, shenshahiDate) in upcomingReminders)
             {
                 <MudListItem Class="px-4 py-3 border-bottom">
-                    <MudStack Row="true">
-                        <MudText Typo="Typo.caption"
-                                 Color="Color.Primary">
-                            @shenshahiDate.ToString("MMM dd") (Roj)
-                        </MudText>
-                        <MudText Typo="Typo.caption"
-                                 Color="Color.Primary">
-                            @item.Date.ToString("MMM dd") (Date)
-                        </MudText>
-                    </MudStack>
+                    <MudText Typo="Typo.h5"
+                             Color="Color.Primary">
+                        @shenshahiDate.ToString("ddd, MMM dd")
+                    </MudText>
                     <MudStack Spacing="1">
                         @* Line 1: Name + Badge + Date *@
                         <MudStack Row="true"
@@ -66,7 +61,7 @@
                                      Size="Size.Small"
                                      Variant="Variant.Text"
                                      Class="ma-0">
-                                @GetReminderEmoji(item) @item.Type
+                                @GetReminderEmoji(item) @item.Type – @item.Date.ToString("MMM dd, yyyy")
                             </MudChip>
                         </MudStack>
 
@@ -108,22 +103,9 @@
                 </MudListItem>
             }
         </MudList>
-    }
-    else
-    {
-        <MudStack AlignItems="AlignItems.Start"
-                  Class="pa-6">
-            <MudIcon Icon="@Icons.Material.Outlined.EventAvailable"
-                     Size="Size.Large"
-                     Color="Color.Default"
-                     Style="opacity:0.3;"/>
-            <MudText Typo="Typo.body2"
-                     Class="mud-text-secondary">No upcoming reminders
-            </MudText>
-        </MudStack>
-    }
 
-</MudPaper>
+    </MudPaper>
+}
 
 @code {
     List<Reminder> reminders = new();
@@ -134,22 +116,16 @@
         reminders = await ReminderService.GetAllRemindersAsync();
 
         var calendar = new ShenshahiCalendar();
-        int currentYear = DateTime.Now.Year;
-        DateTime today = DateTime.Today;
-        DateTime nextWeek = today.AddDays(7);
+        var currentYear = DateTime.Now.Year;
+        var today = DateTime.Today;
+        var nextWeek = today.AddDays(7);
 
         upcomingReminders = reminders
             .Select(item =>
             {
-                // Calculate upcoming Shenshahi date for the current year
-                DateTime targetDate = calendar.GetDateFromRojMah(item.Mah, item.Roj, currentYear);
-
-                // If the date has already passed this year, wrap to next year
+                var targetDate = calendar.GetDateFromRojMah(item.Mah, item.Roj, currentYear);
                 if (targetDate.Date < today)
-                {
                     targetDate = calendar.GetDateFromRojMah(item.Mah, item.Roj, currentYear + 1);
-                }
-
                 return (Reminder: item, ShenshahiDate: targetDate);
             })
             .Where(x => x.ShenshahiDate.Date >= today && x.ShenshahiDate.Date <= nextWeek)
@@ -166,7 +142,7 @@
 
         if (reminder.Type == Reminder.ReminderType.Birthday)
         {
-            bool isDeceased = reminders.Any(r =>
+            var isDeceased = reminders.Any(r =>
                 r.Type == Reminder.ReminderType.Death &&
                 string.Equals(r.Name?.Trim(), reminder.Name?.Trim(), StringComparison.OrdinalIgnoreCase));
 
@@ -192,7 +168,7 @@
         if (reminder.Type == Reminder.ReminderType.Birthday)
         {
             // Check if there is a Death record for the same person
-            bool isDeceased = reminders.Any(r =>
+            var isDeceased = reminders.Any(r =>
                 r.Type == Reminder.ReminderType.Death &&
                 string.Equals(r.Name?.Trim(), reminder.Name?.Trim(), StringComparison.OrdinalIgnoreCase));
 

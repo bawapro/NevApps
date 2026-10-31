@@ -1,98 +1,118 @@
 ﻿using System.Text.RegularExpressions;
 
-namespace NevApps.Services
+namespace NevApps.Services;
+
+public class LoggerService
 {
-    public class LoggerService
+    private static readonly Regex LineNumberRegex = new(@":line\s+(\d+)", RegexOptions.Compiled);
+
+    // Strip machine-specific home dirs from stack traces (C:\Users\name\, /Users/name/, /home/name/).
+    private static readonly Regex UserHomePathRegex = new(
+        @"([A-Za-z]:\\Users\\[^\\]+\\|/(?:Users|home)/[^/]+/)",
+        RegexOptions.Compiled);
+
+    private readonly string _logFilePath;
+
+    public LoggerService() : this(ResolveLogDirectory())
     {
-        private readonly string _logFilePath;
+    }
 
-        private static readonly Regex LineNumberRegex = new Regex(@":line\s+(\d+)", RegexOptions.Compiled);
-        // Strip machine-specific home dirs from stack traces (C:\Users\name\, /Users/name/, /home/name/).
-        private static readonly Regex UserHomePathRegex = new(
-            @"([A-Za-z]:\\Users\\[^\\]+\\|/(?:Users|home)/[^/]+/)",
-            RegexOptions.Compiled);
-        public LoggerService() : this(FileSystem.AppDataDirectory)
+    internal LoggerService(string logDirectory)
+    {
+        Directory.CreateDirectory(logDirectory);
+        var today = DateTime.Now.ToString("yyyy-MM-dd");
+        _logFilePath = Path.Combine(logDirectory, $"app-log-{today}.txt");
+    }
+
+    private static string ResolveLogDirectory()
+    {
+        try
         {
+            return FileSystem.AppDataDirectory;
         }
-
-        public LoggerService(string logDirectory)
+        catch
         {
-            Directory.CreateDirectory(logDirectory);
-            var today = DateTime.Now.ToString("yyyy-MM-dd");
-            _logFilePath = Path.Combine(logDirectory, $"app-log-{today}.txt");
+            return Path.Combine(Path.GetTempPath(), "NevAppsLogs");
         }
+    }
 
-        public string GetLogFilePath() => _logFilePath;
-
-        public void Log(string message, Exception? ex = null, string? extraInfo = null)
+    public void Log(string message, Exception? ex = null, string? extraInfo = null)
+    {
+        try
         {
-            try
+            var timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff");
+            var baseInfo = $"[{timestamp}] {message}";
+
+            //NEW: LOG ROTATION CHECK
+            var logInfo = new FileInfo(_logFilePath);
+            if (logInfo.Exists)
             {
+                // 1. MONTHLY PURGE: If the file is from a previous month, delete it
+                if (logInfo.LastWriteTime.Month != DateTime.Now.Month ||
+                    logInfo.LastWriteTime.Year != DateTime.Now.Year)
+                    File.Delete(_logFilePath);
+                // 2. SIZE SAFETY: Also check if it's over 2MB just in case
+                else if (logInfo.Length > 2 * 1024 * 1024) File.Delete(_logFilePath);
+            }
 
-                var timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff");
-                var baseInfo = $"[{timestamp}] {message}";
+            //USER LOGGING
+            var userLine = $"[USER] {baseInfo}";
+            if (ex != null) userLine += $" | Issue: {ex.Message}";
+            userLine += "\n--------------------------------------------------\n";
+            File.AppendAllText(_logFilePath, userLine);
 
-                var logInfo = new FileInfo(_logFilePath);
-                if (logInfo.Exists)
+            //DEVELOPER LOGGING
+            if (ex != null)
+            {
+                var match = LineNumberRegex.Match(ex.StackTrace ?? "");
+                var lineNumber = match.Success ? match.Groups[1].Value : "Unknown";
+
+                if (!IsDuplicateError(lineNumber))
                 {
-                    // Drop logs from a previous month.
-                    if (logInfo.LastWriteTime.Month != DateTime.Now.Month ||
-                        logInfo.LastWriteTime.Year != DateTime.Now.Year)
-                    {
-                        File.Delete(_logFilePath);
-                    }
-                    // Drop the file if it is larger than 2 MB.
-                    else if (logInfo.Length > 2 * 1024 * 1024)
-                    {
-                        File.Delete(_logFilePath);
-                    }
-                }
+                    var cleanStack = string.IsNullOrWhiteSpace(ex.StackTrace)
+                        ? "(no stack trace)"
+                        : UserHomePathRegex.Replace(ex.StackTrace, @"...\");
+                    var devLine = $"[DEVELOPER] {baseInfo} | Line: {lineNumber}\n" +
+                                  $"Exception: {ex.GetType().Name}: {ex.Message}\n" +
+                                  $"StackTrace: {cleanStack}\n" +
+                                  "--------------------------------------------------\n";
 
-                var userLine = $"[USER] {baseInfo}";
-                if (ex != null) userLine += $" | Issue: {ex.Message}";
-                userLine += "\n--------------------------------------------------\n";
-                File.AppendAllText(_logFilePath, userLine);
-
-                if (ex != null)
-                {
-                    var match = LineNumberRegex.Match(ex.StackTrace ?? "");
-                    string lineNumber = match.Success ? match.Groups[1].Value : "Unknown";
-
-                    if (!string.IsNullOrEmpty(ex.StackTrace) && !IsDuplicateError(lineNumber))
-                    {
-                        var cleanStack = UserHomePathRegex.Replace(ex.StackTrace, @"...\");
-                        var devLine = $"[DEVELOPER] {baseInfo} | Line: {lineNumber}\n" +
-                                      $"Exception: {ex.GetType().Name}\n" +
-                                      $"StackTrace: {cleanStack}\n" +
-                                      "--------------------------------------------------\n";
-
-                        File.AppendAllText(_logFilePath, devLine);
-                    }
+                    File.AppendAllText(_logFilePath, devLine);
                 }
             }
-            catch { }
         }
-
-        private bool IsDuplicateError(string lineNumber)
+        catch
         {
-            if (lineNumber == "Unknown") return false;
-
-            try
-            {
-                if (!File.Exists(_logFilePath)) return false;
-
-                using var fs = new FileStream(_logFilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-                if (fs.Length < 2) return false;
-
-                long seekPos = Math.Max(0, fs.Length - 2000);
-                fs.Seek(seekPos, SeekOrigin.Begin);
-
-                using var reader = new StreamReader(fs);
-                string lastLogs = reader.ReadToEnd();
-
-                return lastLogs.Contains($"| Line: {lineNumber}");
-            }
-            catch { return false; }
         }
+    }
+
+    private bool IsDuplicateError(string lineNumber)
+    {
+        if (lineNumber == "Unknown") return false;
+
+        try
+        {
+            if (!File.Exists(_logFilePath)) return false;
+
+            using var fs = new FileStream(_logFilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            if (fs.Length < 2) return false;
+
+            var seekPos = Math.Max(0, fs.Length - 2000);
+            fs.Seek(seekPos, SeekOrigin.Begin);
+
+            using var reader = new StreamReader(fs);
+            var lastLogs = reader.ReadToEnd();
+
+            return lastLogs.Contains($"| Line: {lineNumber}");
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    public string GetLogFilePath()
+    {
+        return _logFilePath;
     }
 }

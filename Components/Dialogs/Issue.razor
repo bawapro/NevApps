@@ -1,0 +1,77 @@
+﻿@if (isLoading)
+{
+    <div class="d-flex justify-center my-8">
+        <MudProgressCircular Indeterminate="true"
+                             Color="Color.Primary"
+                             Size="Size.Small"/>
+    </div>
+}
+else
+{
+    <MudDialog>
+        <TitleContent>
+            <MudText Typo="Typo.h6">@Title</MudText>
+        </TitleContent>
+
+        <DialogContent>
+            <MudText Typo="Typo.subtitle2"
+                     Style="font-style:italic">Developer Reply
+            </MudText>
+            <MudInput @bind-Value="@devFeedback"
+                      T="string"
+                      Typo="Typo.body2"
+                      Style="font-weight:bold; color: var(--mud-palette-primary);"
+                      Margin="Margin.Dense"
+                      Error="true"
+                      FullWidth="true"
+                      ShrinkLabel="true"
+                      Sizing="InputSizing.Auto"
+                      Disabled="true"/>
+        </DialogContent>
+
+        <DialogActions>
+            <MudButton OnClick="Cancel"
+                       Color="Color.Default">Close
+            </MudButton>
+        </DialogActions>
+    </MudDialog>
+}
+
+@code {
+
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public string Title { get; set; } = "";
+
+    bool isLoading;
+    private string devFeedback { get; set; } = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        isLoading = true;
+        try
+        {
+            var obj = await SettingsService.GetDevIssueReplyAsync();
+
+            if (obj != null)
+            {
+                devFeedback = obj.SettingValue;
+                await SettingsService.UpdateIssueAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            LoggerService.Log($"OnInitializedAsync - {GetType().FullName}", ex);
+            Snackbar.Add(Constants.OnLoadErrorMessage, Severity.Error);
+        }
+
+        isLoading = false;
+        StateHasChanged();
+    }
+
+    private void Cancel()
+    {
+        MudDialog.Cancel();
+    }
+
+
+}

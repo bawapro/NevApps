@@ -19,6 +19,9 @@ namespace NevDBClass.Models
         public decimal Price { get; set; }
 
         [Column(TypeName = "TEXT COLLATE NOCASE")]
+        public string CurrencyCode { get; set; } = "";
+
+        [Column(TypeName = "TEXT COLLATE NOCASE")]
         public string Detail { get; set; } = "";
 
         public int? AutoPay { get; set; }

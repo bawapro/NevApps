@@ -46,7 +46,7 @@ namespace NevDBClass.Data
 
             //Create Unique Indexes to prevent duplicate entries
             modelBuilder.Entity<ExpenseTracker>()
-                .HasIndex(m => new { m.Date, m.Category, m.Type, m.Place, m.Detail, m.Price })
+                .HasIndex(m => new { m.Date, m.Category, m.Type, m.Place, m.Detail, m.Price, m.CurrencyCode })
                 .IsUnique();
 
             modelBuilder.Entity<MileageTracker>()

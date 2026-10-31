@@ -19,6 +19,10 @@ obj/
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
 
+# Local store/adhoc signing (copy from Directory.Build.props.example)
+Directory.Build.props
+*.keystore
+
 # Mono auto generated files
 mono_crash.*
 
@@ -137,6 +141,7 @@ $tf/
 _ReSharper*/
 *.[Rr]e[Ss]harper
 *.DotSettings.user
+.DS_Store
 
 # TeamCity is a build add-in
 _TeamCity*
@@ -367,14 +372,3 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
-
-# macOS
-.DS_Store
-
-# Local store/adhoc signing (copy from Directory.Build.props.example)
-Directory.Build.props
-
-# Signing artifacts
-*.keystore
-*.mobileprovision
-*.p12

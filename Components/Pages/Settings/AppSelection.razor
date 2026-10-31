@@ -82,7 +82,7 @@
 
 @code {
 
-    private bool IsExpenseEnabled = false, IsMileageEnabled = false, IsShenshaiEnabled = false, showShenshai = false, IsStepsEnabled = false;
+    private bool IsExpenseEnabled, IsMileageEnabled, IsShenshaiEnabled, showShenshai, IsStepsEnabled;
     private Color ToggleExpenseColor = Color.Surface, ToggleMileageColor = Color.Surface, ToggleShenshaiColor = Color.Surface, ToggleStepsColor = Color.Surface;
 
     [Parameter] public EventCallback<bool> ExpenseEnabled { get; set; }
@@ -111,7 +111,7 @@
         }
         catch (Exception ex)
         {
-            LoggerService.Log($"OnInitializedAsync - {this.GetType().FullName}", ex);
+            LoggerService.Log($"OnInitializedAsync - {GetType().FullName}", ex);
             Snackbar.Add(Constants.OnLoadErrorMessage, Severity.Error);
         }
     }
@@ -135,10 +135,10 @@
         if (value)
         {
             // 1. Prominent Disclosure required by Google before triggering system permission
-            bool? result = await DialogService.ShowMessageBoxAsync(
-                title: "Location & Motion Permission Notice",
-                message: "NevApps collects location and physical motion data to enable the Steps Tracker feature for accurate step counting, distance calculation, and activity tracking, even when the app is closed or not in use (Background Usage). This data is processed on-device and is never stored, retained, or shared.",
-                yesText: "Agree",
+            var result = await DialogService.ShowMessageBoxAsync(
+                "Location & Motion Permission Notice",
+                "NevApps collects location and physical motion data to enable the Steps Tracker feature for accurate step counting, distance calculation, and activity tracking, even when the app is closed or not in use (Background Usage). This data is processed on-device and is never stored, retained, or shared.",
+                "Agree",
                 cancelText: "No Thanks"
             );
 
@@ -152,20 +152,6 @@
                 return;
             }
 
-            // 2. Check & Request Native System Permissions
-            /*var locationStatus = await Permissions.CheckStatusAsync<Permissions.LocationWhenInUse>();
-            if (locationStatus != PermissionStatus.Granted)
-            {
-                locationStatus = await Permissions.RequestAsync<Permissions.LocationWhenInUse>();
-                if (locationStatus != PermissionStatus.Granted)
-                {
-                    IsStepsEnabled = false;
-                    ToggleStepsColor = Color.Surface;
-                    StateHasChanged();
-                    await StepsEnabled.InvokeAsync(false);
-                    return;
-                }
-            }*/
             await CheckPermissions();
         }
 
@@ -185,18 +171,18 @@
         await IsMotionEnabled();
         StateHasChanged();
 
-        string instructions = DeviceInfo.Platform == DevicePlatform.Android
+        var instructions = DeviceInfo.Platform == DevicePlatform.Android
             ? "1. Change Location permission to <b>'Allow all the time'</b>.<br/>2. Enable <b>Background Activity</b> under Battery usage."
             : "1. Change Location permission to <b>'Always'</b>.<br/>2. Turn on <b>Background App Refresh</b>.<br/>" +
               "3. Ensure <b>Motion & Fitness</b> is turned ON.";
 
-        bool? runSettingsSetup = await DialogService.ShowMessageBoxAsync(
-            title: "Enable Background Services",
-            markupMessage: new Microsoft.AspNetCore.Components.MarkupString(
+        var runSettingsSetup = await DialogService.ShowMessageBoxAsync(
+            "Enable Background Services",
+            new MarkupString(
                 "To ensure seamless tracking, please complete these manual adjustments inside phone Settings:<br/><br/>" +
                 $"{instructions}<br/><br/>"
             ),
-            yesText: "Open Settings",
+            "Open Settings",
             cancelText: "Cancel"
         );
 
@@ -207,7 +193,7 @@
     private async Task<bool> IsMotionEnabled()
     {
         // 1. Initialize a fallback status for iOS so the final 'if' statement doesn't break
-        PermissionStatus motionStatus = PermissionStatus.Granted;
+        var motionStatus = PermissionStatus.Granted;
 
 #if ANDROID
         // 2. This code ONLY executes and looks for the custom class when building for Android
@@ -265,10 +251,10 @@
         if (value)
         {
             // 1. Prominent Disclosure required by Google before requesting Location for Sunrise calculations
-            bool? result = await DialogService.ShowMessageBoxAsync(
-                title: "Location Access Notice",
-                message: "NevApps accesses your location to calculate accurate Sunrise and Sunset times for the Shahenshahi Calendar. Your location is processed in real-time and is never stored, retained, or shared.",
-                yesText: "Agree",
+            var result = await DialogService.ShowMessageBoxAsync(
+                "Location Access Notice",
+                "NevApps accesses your location to calculate accurate Sunrise and Sunset times for the Shahenshahi Calendar. Your location is processed in real-time and is never stored, retained, or shared.",
+                "Agree",
                 cancelText: "No Thanks"
             );
 

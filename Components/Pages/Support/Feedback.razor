@@ -1,0 +1,206 @@
+﻿@if (isLoading)
+{
+    <div class="d-flex justify-center my-8">
+        <MudProgressCircular Indeterminate="true"
+                             Color="Color.Primary"
+                             Size="Size.Small"/>
+    </div>
+}
+else if (feedbacks == null || feedbacks.Count == 0)
+{
+    <MudAlert Severity="Severity.Info"
+              Variant="Variant.Outlined"
+              Class="my-6">
+        No entries yet.
+    </MudAlert>
+}
+else
+{
+    <MudDataGrid Items="@feedbacks"
+                 Dense="true"
+                 Bordered="true"
+                 Striped="true"
+                 Hover="true"
+                 Elevation="2"
+                 Class="mt-4">
+        <Columns>
+            <PropertyColumn Property="@(x => x["lastModified"])"
+                            Title="Date"
+                            Sortable="true"
+                            Filterable="true">
+                <CellTemplate>
+                    @{
+                        var blobValue = context.Item["blobName"];
+                        var fullName = blobValue?.ToString() ?? "";
+                        var dateTime = DateTime.ParseExact(fullName.Split('_')[1].Replace(".json", ""), "yyyyMMddHHmmss", CultureInfo.InvariantCulture);
+                    }
+                    @dateTime
+                </CellTemplate>
+            </PropertyColumn>
+
+            <PropertyColumn Property="@(x => x["blobName"])"
+                            Title="User"
+                            Sortable="true">
+                <CellTemplate>
+                    @{
+                        var blobValue = context.Item["blobName"];
+                        var fullName = blobValue?.ToString() ?? "";
+                        var userId = fullName.Substring(0, fullName.IndexOf('_') - 1);
+                    }
+                    @userId
+                </CellTemplate>
+            </PropertyColumn>
+
+            <PropertyColumn Property="@(x => x["message"])"
+                            Title="Message Preview"
+                            Sortable="false"/>
+
+            <TemplateColumn Title="Actions"
+                            Sortable="false"
+                            Filterable="false">
+                <CellTemplate>
+                    <MudIconButton Icon="@Icons.Material.Filled.Visibility"
+                                   Color="Color.Primary"
+                                   Size="Size.Small"
+                                   OnClick="() => OpenViewDialog(context.Item)"/>
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+
+        <PagerContent>
+            <MudDataGridPager PageSizeOptions="new[] { 10, 20, 50 }"/>
+        </PagerContent>
+    </MudDataGrid>
+}
+
+<MudDialog @bind-Visible="replyDialogOpen">
+    <TitleContent>
+        <MudText Typo="Typo.h6">User Feedback & Reply</MudText>
+    </TitleContent>
+
+    <DialogContent>
+        <MudText Typo="Typo.body1"
+                 Class="mb-4">
+            <strong>Message:</strong> @currentMessage
+        </MudText>
+
+        <MudTextField @bind-Value="replyText"
+                      Label="Your reply"
+                      Variant="Variant.Outlined"
+                      Lines="5"
+                      FullWidth="true"
+                      Immediate="true"
+                      MaxLength="1500"
+                      Counter="1500"
+                      AutoFocus="true"/>
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton OnClick="() => replyDialogOpen = false">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   Disabled="@(string.IsNullOrWhiteSpace(replyText) | isSubmitting)"
+                   OnClick="OnSubmit">
+            @if (isSubmitting)
+            {
+                <MudProgressCircular Indeterminate="true"
+                                     Color="Color.Primary"
+                                     Size="Size.Small"/>
+            }
+            else
+            {
+                <MudText>Submit</MudText>
+            }
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private bool isLoading = true, isSubmitting;
+    private bool replyDialogOpen;
+    private string currentMessage = "";
+    private string replyText = "";
+    private Dictionary<string, object>? currentItem;
+    private List<Dictionary<string, object>> feedbacks = new();
+    [Parameter] public int ReloadToken { get; set; }
+    [Parameter] public EventCallback<int> FeedbackCountChanged { get; set; }
+
+    private int _loadedToken = -1;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (ReloadToken == _loadedToken)
+            return;
+
+        _loadedToken = ReloadToken;
+        await LoadFeedbacks();
+    }
+
+    private async Task LoadFeedbacks()
+    {
+        isLoading = true;
+
+        try
+        {
+            var response = await NevAPIService.LoadFeedbacksAsync();
+            feedbacks = response?.Items ?? new List<Dictionary<string, object>>();
+        }
+        catch (Exception ex)
+        {
+            LoggerService.Log($"LoadFeedbacks - {GetType().FullName}", ex);
+            Snackbar.Add($"Failed to load: {ex.Message}", Severity.Error);
+        }
+
+        isLoading = false;
+        await FeedbackCountChanged.InvokeAsync(feedbacks.Count);
+    }
+
+    private void OpenViewDialog(Dictionary<string, object> item)
+    {
+        currentItem = item;
+        currentMessage = item.TryGetValue("message", out var msgValue) ? msgValue?.ToString() ?? "No message content" : "No message content";
+        replyText = "";
+        replyDialogOpen = true;
+    }
+
+    private async Task OnSubmit()
+    {
+        if (currentItem == null || string.IsNullOrWhiteSpace(replyText))
+            return;
+
+        isSubmitting = true;
+
+        try
+        {
+            var replyPayload = new
+            {
+                UserId = currentItem["userId"].ToString(),
+                BlobType = "feedback",
+                Message = replyText.Trim(),
+                Status = "D"
+            };
+
+            var response = await NevAPIService.SendDevFeedbackAndIssueReplyAsync(replyPayload);
+
+            if (response.IsSuccessStatusCode)
+            {
+                Snackbar.Add("Reply sent successfully", Severity.Success);
+                replyDialogOpen = false;
+                replyText = "";
+                await LoadFeedbacks();
+            }
+            else
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                Snackbar.Add($"Reply failed: {error}", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+
+        isSubmitting = false;
+    }
+
+}

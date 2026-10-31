@@ -1,0 +1,248 @@
+﻿@if (isLoading)
+{
+    <div class="d-flex justify-center my-8">
+        <MudProgressCircular Indeterminate="true"
+                             Color="Color.Primary"
+                             Size="Size.Small"/>
+    </div>
+}
+else if (issues == null || issues.Count == 0)
+{
+    <MudAlert Severity="Severity.Info"
+              Variant="Variant.Outlined"
+              Class="my-6">
+        No entries yet.
+    </MudAlert>
+}
+else
+{
+    <MudDataGrid Items="@issues"
+                 Dense="true"
+                 Bordered="true"
+                 Striped="true"
+                 Hover="true"
+                 Elevation="2"
+                 Class="mt-4">
+        <Columns>
+            <TemplateColumn Title="Actions"
+                            Sortable="false"
+                            Filterable="false"
+                            HeaderStyle="width: 50px;"
+                            CellStyle="width: 50px; padding-left: 4px;">
+                <CellTemplate>
+                    <MudIconButton Icon="@Icons.Material.Filled.Visibility"
+                                   Color="Color.Primary"
+                                   Size="Size.Small"
+                                   OnClick="() => OpenViewDialog(context.Item)"/>
+                    <MudIconButton Icon="@Icons.Material.Filled.ContentCopy"
+                                   Color="Color.Success"
+                                   Size="Size.Small"
+                                   OnClick="() => CopyToClipboard(context.Item)"/>
+                </CellTemplate>
+            </TemplateColumn>
+
+            <PropertyColumn Property="@(x => x["lastModified"])"
+                            Title="Date"
+                            Sortable="true"
+                            Filterable="true"
+                            HeaderStyle="width: 250px;"
+                            CellStyle="width: 250px; padding-left: 4px;">
+                <CellTemplate>
+                    @{
+                        var blobValue = context.Item["blobName"];
+                        var fullName = blobValue?.ToString() ?? "";
+                        var dateTime = DateTime.ParseExact(fullName.Split('_')[1].Replace(".txt", ""), "yyyyMMddHHmmss", CultureInfo.InvariantCulture);
+                    }
+                    @dateTime
+                </CellTemplate>
+            </PropertyColumn>
+
+            <PropertyColumn Property="@(x => x["blobName"])"
+                            Title="User"
+                            Sortable="true"
+                            HeaderStyle="width: 250px;"
+                            CellStyle="width: 250px; padding-left: 4px;">
+                <CellTemplate>
+                    @{
+                        var blobValue = context.Item["blobName"];
+                        var fullName = blobValue?.ToString() ?? "";
+                        var userId = fullName.Substring(0, fullName.IndexOf('_') - 1);
+                    }
+                    @userId
+                </CellTemplate>
+            </PropertyColumn>
+
+            <TemplateColumn Title="Exception"
+                            Sortable="false">
+                <CellTemplate>
+                    <MudText Typo="Typo.body2"
+                             Style="white-space: pre-wrap;">
+                        @ExceptionPreview(context.Item)
+                    </MudText>
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+
+        <PagerContent>
+            <MudDataGridPager PageSizeOptions="new[] { 10, 20, 50 }"/>
+        </PagerContent>
+    </MudDataGrid>
+}
+
+<MudDialog @bind-Visible="replyDialogOpen">
+    <TitleContent>
+        <MudText Typo="Typo.h6">User Feedback & Reply</MudText>
+    </TitleContent>
+
+    <DialogContent>
+        <MudTextField Value="@currentMessage"
+                      ReadOnly="true"
+                      Variant="Variant.Outlined"
+                      Lines="16"
+                      FullWidth="true"
+                      Style="font-family: monospace; white-space: pre-wrap;"/>
+
+        <MudTextField @bind-Value="replyText"
+                      Label="Your reply"
+                      Variant="Variant.Outlined"
+                      Lines="5"
+                      FullWidth="true"
+                      Immediate="true"
+                      MaxLength="1500"
+                      Counter="1500"
+                      AutoFocus="true"/>
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton OnClick="() => replyDialogOpen = false">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   OnClick="OnSubmit">
+            Submit
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private bool isLoading = true;
+    private bool replyDialogOpen;
+    private string currentMessage = "";
+    private string replyText = "";
+    private Dictionary<string, object>? currentItem;
+    private List<Dictionary<string, object>> issues = new();
+    [Parameter] public int ReloadToken { get; set; }
+    [Parameter] public EventCallback<int> IssueCountChanged { get; set; }
+
+    private int _loadedToken = -1;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (ReloadToken == _loadedToken)
+            return;
+
+        _loadedToken = ReloadToken;
+        await LoadIssues();
+    }
+
+    private async Task LoadIssues()
+    {
+        isLoading = true;
+
+        try
+        {
+            var response = await NevAPIService.LoadIssuesAsync();
+            issues = response?.Items ?? new List<Dictionary<string, object>>();
+        }
+        catch (Exception ex)
+        {
+            LoggerService.Log($"LoadIssues - {GetType().FullName}", ex);
+            Snackbar.Add($"Failed to load: {ex.Message}", Severity.Error);
+        }
+
+        isLoading = false;
+        await IssueCountChanged.InvokeAsync(issues.Count);
+    }
+
+    private void OpenViewDialog(Dictionary<string, object> item)
+    {
+        currentItem = item;
+        currentMessage = ReadRaw(item);
+        if (string.IsNullOrWhiteSpace(currentMessage))
+            currentMessage = "No message content";
+        replyText = "";
+        replyDialogOpen = true;
+    }
+
+    private static string ExceptionPreview(Dictionary<string, object> item)
+    {
+        var text = ReadRaw(item);
+        foreach (var line in text.Split('\n'))
+        {
+            var trimmed = line.Trim();
+            if (trimmed.StartsWith("Exception:", StringComparison.Ordinal) ||
+                trimmed.StartsWith("Issue:", StringComparison.Ordinal))
+                return trimmed;
+        }
+
+        return string.IsNullOrWhiteSpace(text) ? "—" : "No exception text";
+    }
+
+    private static string ReadRaw(Dictionary<string, object> item)
+    {
+        if (!item.TryGetValue("rawContent", out var value) || value is null)
+            return "";
+
+        if (value is JsonElement element)
+            return element.ValueKind == JsonValueKind.String
+                ? element.GetString() ?? ""
+                : element.GetRawText();
+
+        return value.ToString() ?? "";
+    }
+
+    private async Task OnSubmit()
+    {
+        if (currentItem == null)
+            return;
+
+        try
+        {
+            var replyPayload = new
+            {
+                UserId = currentItem["blobName"].ToString()!.Replace(".txt", ""),
+                BlobType = "issue",
+                IsRead = true,
+                Message = replyText.Trim(),
+                Status = "D"
+            };
+
+            var response = await NevAPIService.SendDevFeedbackAndIssueReplyAsync(replyPayload);
+
+            if (response.IsSuccessStatusCode)
+            {
+                Snackbar.Add("Reply sent successfully", Severity.Success);
+                replyDialogOpen = false;
+                replyText = "";
+                await LoadIssues();
+                StateHasChanged();
+            }
+            else
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                Snackbar.Add($"Reply failed: {error}", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task CopyToClipboard(Dictionary<string, object> item)
+    {
+        item.TryGetValue("rawContent", out var content);
+        await Clipboard.SetTextAsync(content!.ToString());
+        Snackbar.Add("Copied to clipboard", Severity.Success);
+    }
+
+}

@@ -1,0 +1,91 @@
+@inject IJSRuntime JS
+@implements IDisposable
+
+<div @ref="_root"
+     class="ptr-root">
+    <div class="ptr-indicator"
+         data-ptr-indicator>
+        <div class="ptr-spinner"></div>
+    </div>
+    <div class="ptr-content">
+        @ChildContent
+    </div>
+</div>
+
+@code {
+    private ElementReference _root;
+    private DotNetObjectReference<PullToRefresh>? _jsRef;
+    private bool _attached;
+    private bool _disposed;
+
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public EventCallback OnRefresh { get; set; }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _attached || _disposed)
+            return;
+
+        _jsRef = DotNetObjectReference.Create(this);
+        try
+        {
+            await JS.InvokeVoidAsync("pullToRefresh.attach", _root, _jsRef, 70);
+            _attached = true;
+        }
+        catch (Exception)
+        {
+            _jsRef.Dispose();
+            _jsRef = null;
+        }
+    }
+
+    [JSInvokable]
+    public async Task OnJsRefresh()
+    {
+        if (_disposed)
+            return;
+
+        try
+        {
+            await JS.InvokeVoidAsync("pullToRefresh.setRefreshing", _root, true);
+            if (OnRefresh.HasDelegate)
+                await OnRefresh.InvokeAsync();
+        }
+        finally
+        {
+            if (!_disposed)
+            {
+                try
+                {
+                    await JS.InvokeVoidAsync("pullToRefresh.setRefreshing", _root, false);
+                }
+                catch (Exception)
+                {
+                }
+            }
+        }
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+        _ = DetachAsync();
+    }
+
+    private async Task DetachAsync()
+    {
+        try
+        {
+            if (_attached)
+                await JS.InvokeVoidAsync("pullToRefresh.detach", _root);
+        }
+        catch (Exception)
+        {
+        }
+
+        _attached = false;
+        _jsRef?.Dispose();
+        _jsRef = null;
+    }
+
+}

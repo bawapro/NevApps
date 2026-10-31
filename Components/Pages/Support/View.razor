@@ -1,0 +1,66 @@
+﻿@page "/view-support"
+
+<MudTabs Elevation="2"
+         ApplyEffectsToContainer="true"
+         Centered="true"
+         Rounded="true"
+         KeepPanelsAlive="true">
+    <MudTabPanel BadgeData="@(feedbackCount > 0 ? feedbackCount : null)"
+                 BadgeColor="Color.Primary"
+                 Text="Feedback">
+        <Feedback ReloadToken="reloadToken"
+                  FeedbackCountChanged="OnFeedbackCountChanged"/>
+    </MudTabPanel>
+
+    <MudTabPanel BadgeData="@(issueCount > 0 ? issueCount : null)"
+                 BadgeColor="Color.Error"
+                 Text="Issues">
+        <Issue ReloadToken="reloadToken"
+               IssueCountChanged="OnIssueCountChanged"/>
+    </MudTabPanel>
+</MudTabs>
+
+@code
+{
+    private int feedbackCount, issueCount, reloadToken;
+    private bool _wasOnSupport, _feedbackReady, _issueReady;
+
+    protected override void OnParametersSet()
+    {
+        var onSupport = IsOnSupport();
+        if (onSupport && !_wasOnSupport)
+            reloadToken++;
+
+        _wasOnSupport = onSupport;
+    }
+
+    private bool IsOnSupport()
+    {
+        var path = NavigationManager.ToBaseRelativePath(NavigationManager.Uri).TrimEnd('/');
+        return path.Equals("view-support", StringComparison.OrdinalIgnoreCase);
+    }
+
+    public void OnFeedbackCountChanged(int count)
+    {
+        feedbackCount = count;
+        _feedbackReady = true;
+        PublishAdminIcon();
+        StateHasChanged();
+    }
+
+    public void OnIssueCountChanged(int count)
+    {
+        issueCount = count;
+        _issueReady = true;
+        PublishAdminIcon();
+        StateHasChanged();
+    }
+
+    private void PublishAdminIcon()
+    {
+        if (!_feedbackReady || !_issueReady)
+            return;
+
+        StateService.SetAdminSupportHasEntries(feedbackCount + issueCount > 0);
+    }
+}

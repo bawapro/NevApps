@@ -1,15 +1,19 @@
-﻿namespace NevApps.Models
+﻿namespace NevApps.Models;
+
+public class Settings
 {
-    public class Settings
+    public class Country
     {
-        public class Country
-        {
-            public string Code { get; set; } = "";         // Alpha-2 e.g. "CA"
-            public string Name { get; set; } = "";         // "Canada"
-            public string Display => $"{Name} ({Code})";   // In autocomplete
-            public string CurrencyCode { get; set; } = "";
-            public string CurrencySymbol { get; set; } = "";
-            public string Continent { get; set; } = "";
-        }
+        public string Code { get; set; } = ""; // Alpha-2 e.g. "CA"
+        public string Name { get; set; } = ""; // "Canada"
+        public string Display => $"{Name} ({Code})"; // In autocomplete
+        public string CurrencyCode { get; set; } = "";
+        public string CurrencySymbol { get; set; } = "";
+        public string Continent { get; set; } = "";
+    }
+
+    public sealed record CurrencyOption(string Code, string Country)
+    {
+        public string Display => string.IsNullOrEmpty(Country) ? Code : $"{Code} - {Country}";
     }
 }

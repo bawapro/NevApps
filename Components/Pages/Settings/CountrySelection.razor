@@ -1,22 +1,91 @@
 ﻿@page "/settings/country-currency"
-@using static NevApps.Models.Settings
+@using static Models.Settings
 
 <MudContainer>
-    <MudGrid Spacing="5">
-        <MudItem xs="12" sm="12" md="5">
-            <MudAutocomplete T="Country" Label="Country" Value="SelectedCountry" ValueChanged="OnCountryChanged" Variant="Variant.Outlined"
-                             SearchFunc="SearchCountries" ToStringFunc="@(c => c?.Display ?? "")" Margin="Margin.Dense" HelperText="Country of Residence/Travel"
-                             IconSize="Size.Small" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Public"
-                             ResetValueOnEmptyText="true" CoerceText="true" Clearable="true" Dense="true" />
-        </MudItem>
+    <MudStack Spacing="2">
+        <MudAutocomplete T="Country"
+                         Label="Country"
+                         Value="SelectedCountry"
+                         ValueChanged="OnCountryChanged"
+                         Variant="Variant.Outlined"
+                         SearchFunc="SearchCountries"
+                         ToStringFunc="@(c => c?.Display ?? "")"
+                         Margin="Margin.Dense"
+                         HelperText="Country of Residence/Travel"
+                         IconSize="Size.Small"
+                         Adornment="Adornment.Start"
+                         AdornmentIcon="@Icons.Material.Filled.Public"
+                         ResetValueOnEmptyText="true"
+                         CoerceText="true"
+                         Clearable="true"
+                         Dense="true"/>
 
-        <MudItem xs="6" sm="6" md="3">
-            <MudTextField @bind-Value="currency" Label="Currency" Variant="Variant.Outlined" Disabled="true" Margin="Margin.Dense"
-                          IconSize="Size.Small" Adornment="Adornment.Start" />
-        </MudItem>
-    </MudGrid>
+        <MudStack Spacing="1">
+            <div class="mb-1"
+                 style="display: flex; flex-direction: row; flex-wrap: wrap; gap: 4px;">
+                <MudChip T="string"
+                         Text="@DefaultCurrencyCode"
+                         Icon="@SettingsService.GetCurrencyIconForCode(DefaultCurrencyCode)"
+                         Color="Color.Primary"
+                         Size="Size.Small"
+                         Style="flex: 0 0 auto; width: fit-content;"/>
+                @foreach (var currencyCode in extraCurrencies)
+                {
+                    <MudChip T="string"
+                             Text="@currencyCode"
+                             Icon="@SettingsService.GetCurrencyIconForCode(currencyCode)"
+                             Color="Color.Success"
+                             Size="Size.Small"
+                             Style="flex: 0 0 auto; width: fit-content;"
+                             OnClick="@(() => SelectExtraCurrency(currencyCode))"
+                             OnClose="@(() => RemoveExtraCurrency(currencyCode))"/>
+                }
+            </div>
+            <MudStack Row="true"
+                      AlignItems="AlignItems.End"
+                      Spacing="1">
+                <MudAutocomplete T="CurrencyOption"
+                                 Label="Add New Currency"
+                                 Value="@selectedExtraCurrency"
+                                 ValueChanged="OnExtraCurrencyChanged"
+                                 SearchFunc="SearchCurrencies"
+                                 ToStringFunc="@(c => c?.Display ?? "")"
+                                 Variant="Variant.Outlined"
+                                 Margin="Margin.Dense"
+                                 IconSize="Size.Small"
+                                 Adornment="Adornment.Start"
+                                 AdornmentIcon="@SettingsService.GetCurrencyIconForCode(selectedExtraCurrency?.Code)"
+                                 AdornmentColor="Color.Primary"
+                                 Clearable="true"
+                                 Dense="true"
+                                 CoerceText="true"
+                                 Strict="true"
+                                 ResetValueOnEmptyText="true">
+                    <ItemTemplate>
+                        <MudStack Row="true"
+                                  AlignItems="AlignItems.Center"
+                                  Spacing="1">
+                            <MudIcon Icon="@SettingsService.GetCurrencyIconForCode(context.Code)"
+                                     Size="Size.Small"/>
+                            <MudText>@context.Display</MudText>
+                        </MudStack>
+                    </ItemTemplate>
+                </MudAutocomplete>
+                <MudTooltip Text="Add currency">
+                    <MudIconButton Icon="@Icons.Material.Filled.Add"
+                                   Color="Color.Success"
+                                   Size="Size.Small"
+                                   Variant="Variant.Outlined"
+                                   Style="margin-bottom: 4px;"
+                                   Disabled="@(selectedExtraCurrency is null)"
+                                   OnClick="AddExtraCurrency"/>
+                </MudTooltip>
+            </MudStack>
+        </MudStack>
+    </MudStack>
 
-    <MudText Typo="Typo.body2" Class="mt-2">
+    <MudText Typo="Typo.body2"
+             Class="mt-2">
         <b><u>Note</u></b>: If traveling to the USA, change your country to update mileage and fuel units.
     </MudText>
 </MudContainer>
@@ -24,20 +93,35 @@
 @code {
 
     private string? country = "", currency = "";
+    private CurrencyOption? selectedExtraCurrency;
+    private List<string> extraCurrencies = new();
+    private string DefaultCurrencyCode => currency?.Split(' ').FirstOrDefault() ?? "";
+
+    private IEnumerable<string> AdditionalCurrencyCodes =>
+        SettingsService.AllCountries
+            .Select(c => c.CurrencyCode)
+            .Where(c => !string.IsNullOrWhiteSpace(c) &&
+                        SettingsService.IsCurrencyIconSupported(c) &&
+                        !string.Equals(c, currency?.Split(' ').FirstOrDefault(), StringComparison.OrdinalIgnoreCase) &&
+                        !extraCurrencies.Contains(c, StringComparer.OrdinalIgnoreCase))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(c => c);
 
     [Parameter] public bool IsEditMode { get; set; }
     [Parameter] public Country? SelectedCountry { get; set; }
     [Parameter] public EventCallback<Country?> SelectedCountryChanged { get; set; }
+    [Parameter] public EventCallback<List<string>> AdditionalCurrenciesChanged { get; set; }
 
     protected override async Task OnInitializedAsync()
     {
-        List<Setting> Settings = await SettingsService.GetSettingsAsync();
+        var Settings = await SettingsService.GetSettingsAsync();
         country = Settings.Where(x => x.SettingKey == "country").FirstOrDefault()?.SettingValue;
         currency = Settings.Where(x => x.SettingKey == "currency").FirstOrDefault()?.SettingValue;
+        extraCurrencies = await SettingsService.GetExtraCurrencyCodesAsync();
 
         if (country != null)
         {
-            Country obj = SettingsService.AllCountries.FirstOrDefault(c => c.Name == country)!;
+            var obj = SettingsService.AllCountries.FirstOrDefault(c => c.Name == country)!;
             await SelectedCountryChanged.InvokeAsync(obj);
         }
     }
@@ -50,9 +134,9 @@
         value = value.Trim().ToLowerInvariant();
 
         return Task.FromResult(SettingsService.AllCountries
-                     .Where(c => c.Name.ToLowerInvariant().Contains(value) ||
-                                c.Code.ToLowerInvariant().Contains(value))
-                     .Take(10));
+            .Where(c => c.Name.ToLowerInvariant().Contains(value) ||
+                        c.Code.ToLowerInvariant().Contains(value))
+            .Take(10));
     }
 
     private async Task OnCountryChanged(Country? country)
@@ -68,7 +152,60 @@
             currency = "";
         }
 
-        await SelectedCountryChanged.InvokeAsync(country);  // ← notify parent
+        await SelectedCountryChanged.InvokeAsync(country); // ← notify parent
+    }
+
+    private void OnExtraCurrencyChanged(CurrencyOption? value)
+    {
+        selectedExtraCurrency = value;
+    }
+
+    private void SelectExtraCurrency(string currencyCode)
+    {
+        selectedExtraCurrency = SettingsService.GetCurrencyOption(currencyCode);
+    }
+
+    private async Task AddExtraCurrency()
+    {
+        if (selectedExtraCurrency is null ||
+            !AdditionalCurrencyCodes.Contains(selectedExtraCurrency.Code, StringComparer.OrdinalIgnoreCase))
+            return;
+
+        extraCurrencies.Add(selectedExtraCurrency.Code);
+        selectedExtraCurrency = null;
+        await AdditionalCurrenciesChanged.InvokeAsync(extraCurrencies);
+    }
+
+    private async Task RemoveExtraCurrency()
+    {
+        if (selectedExtraCurrency is null)
+            return;
+
+        extraCurrencies.RemoveAll(c => string.Equals(c, selectedExtraCurrency.Code, StringComparison.OrdinalIgnoreCase));
+        selectedExtraCurrency = extraCurrencies.Count > 0
+            ? SettingsService.GetCurrencyOption(extraCurrencies[0])
+            : null;
+        await AdditionalCurrenciesChanged.InvokeAsync(extraCurrencies);
+    }
+
+    private async Task RemoveExtraCurrency(string currencyCode)
+    {
+        extraCurrencies.RemoveAll(c => string.Equals(c, currencyCode, StringComparison.OrdinalIgnoreCase));
+        if (string.Equals(selectedExtraCurrency?.Code, currencyCode, StringComparison.OrdinalIgnoreCase))
+            selectedExtraCurrency = extraCurrencies.Count > 0
+                ? SettingsService.GetCurrencyOption(extraCurrencies[0])
+                : null;
+
+        await AdditionalCurrenciesChanged.InvokeAsync(extraCurrencies);
+    }
+
+    private Task<IEnumerable<CurrencyOption>> SearchCurrencies(string? value, CancellationToken cancellationToken)
+    {
+        var query = value?.Trim() ?? "";
+
+        return Task.FromResult(AdditionalCurrencyCodes
+            .Where(code => SettingsService.CurrencyMatchesQuery(code, query))
+            .Select(SettingsService.GetCurrencyOption));
     }
 
 }

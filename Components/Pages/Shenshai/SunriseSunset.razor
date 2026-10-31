@@ -1,5 +1,5 @@
 ﻿@page "/sunrisesunset"
-@if (isLoading)
+@if (_isLoading)
 {
 }
 else
@@ -25,9 +25,9 @@ else
 }
 
 @code {
-    
+
     [Parameter] public string CurrentMoonEmoji { get; set; } = "";
-    bool isLoading = false;
+    private bool _isLoading;
     private CancellationTokenSource? _cancellationToken;
     private string city = "", sunrise = "", sunset = "";
 
@@ -71,19 +71,19 @@ else
     {
         try
         {
-            isLoading = true;
-            bool isValid = await CheckPermission();
+            _isLoading = true;
+            var isValid = await CheckPermission();
             if (isValid)
             {
                 (sunrise, sunset, city) = await GetSunriseSunset();
             }
 
-            isLoading = false;
+            _isLoading = false;
             StateHasChanged();
         }
         catch (Exception ex)
         {
-            LoggerService.Log($"OnInitializedAsync - {this.GetType().FullName}", ex);
+            LoggerService.Log($"OnInitializedAsync - {GetType().FullName}", ex);
         }
     }
 
@@ -95,12 +95,13 @@ else
             status = await Permissions.RequestAsync<Permissions.LocationWhenInUse>();
             if (status != PermissionStatus.Granted)
             {
-                await DialogService.ShowMessageBoxAsync("Error", "Location access is required for sunrise/sunset data.", "OK");
+                await DialogService.ShowMessageBoxAsync("Error", "Location access is required for sunrise/sunset data.");
             }
         }
+
         return status == PermissionStatus.Granted;
     }
-    
+
     private async Task<(string sunrise, string sunset, string city)> GetSunriseSunset()
     {
         var cachedData = StateService.GetSunData();
@@ -127,7 +128,7 @@ else
         string sunrise = "", sunset = "", city = "";
 
         GeolocationRequest request = new(GeolocationAccuracy.Medium, TimeSpan.FromSeconds(10));
-        using (_cancellationToken = new())
+        using (_cancellationToken = new CancellationTokenSource())
         {
             if (request != null)
             {
@@ -138,24 +139,24 @@ else
                 }
                 catch (PermissionException ex)
                 {
-                    await DialogService.ShowMessageBoxAsync("Error", ex.Message, "OK");
+                    await DialogService.ShowMessageBoxAsync("Error", ex.Message);
                 }
                 catch (FeatureNotEnabledException ex)
                 {
-                    await DialogService.ShowMessageBoxAsync("Error", "Feature not enabled - " + ex.Message, "OK");
+                    await DialogService.ShowMessageBoxAsync("Error", "Feature not enabled - " + ex.Message);
                 }
                 catch (Exception ex)
                 {
-                    await DialogService.ShowMessageBoxAsync("Error", "Geolocation error - " + ex.Message, "OK");
+                    await DialogService.ShowMessageBoxAsync("Error", "Geolocation error - " + ex.Message);
                 }
 
                 using (var httpClient = new HttpClient())
                 {
                     if (myLocation != null)
                     {
-                        IEnumerable<Placemark> placemarks = await Geocoding.Default.GetPlacemarksAsync(myLocation.Latitude, myLocation.Longitude);
+                        var placemarks = await Geocoding.Default.GetPlacemarksAsync(myLocation.Latitude, myLocation.Longitude);
 
-                        Placemark? placemark = placemarks?.FirstOrDefault();
+                        var placemark = placemarks?.FirstOrDefault();
                         city = placemark?.Locality ?? "";
 
                         var requestUri = "https://api.sunrise-sunset.org/json?lat=" + myLocation.Latitude + "&lng=" + myLocation.Longitude + "&tzid=" + TimeZoneInfo.Local.Id; //&tzid=America/Toronto
@@ -167,7 +168,7 @@ else
 
                             if (!string.IsNullOrEmpty(json) && !json.Contains("Exception") && !json.Contains("error"))
                             {
-                                NevApps.Models.SunriseSunset? sunriseSunsetObj = JsonSerializer.Deserialize<NevApps.Models.SunriseSunset>(json);
+                                var sunriseSunsetObj = JsonSerializer.Deserialize<Models.SunriseSunset>(json);
 
                                 if (sunriseSunsetObj?.results != null)
                                 {

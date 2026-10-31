@@ -1,0 +1,217 @@
+﻿@page "/announce"
+
+<style>
+    .hover-card {
+        transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+    }
+
+    .hover-card:active {
+        transform: scale(0.98);
+        background-color: var(--mud-palette-background-grey);
+    }
+
+    /* Unread Card Highlight */
+    .card-unread {
+        border-left: 5px solid var(--mud-palette-primary) !important;
+        background-color: rgba(var(--mud-palette-primary-rgb), 0.04);
+    }
+</style>
+
+@if (isLoading)
+{
+    <MudStack AlignItems="AlignItems.Center"
+              Justify="Justify.Center"
+              Spacing="5"
+              Class="mt-8">
+        <MudProgressCircular Color="Color.Info"
+                             Indeterminate="true"
+                             Size="Size.Large"/>
+    </MudStack>
+}
+else
+{
+    @if (selectedBroadcast == null)
+    {
+        <MudStack Spacing="3"
+                  Class="pa-4">
+            <MudText Typo="Typo.h5"
+                     Class="mb-2"
+                     Color="Color.Primary">Announcements
+            </MudText>
+
+            @foreach (var ann in broadcasts)
+            {
+                var id = ann["Id"]?.ToString() ?? string.Empty;
+                var isUnread = IsAnnouncementUnread(id);
+
+                <MudCard Elevation="2"
+                         @onclick="@(() => ShowDetail(ann))"
+                         Style="cursor:pointer;"
+                         Class="@($"hover-card {(isUnread ? "card-unread" : "")}")">
+                    <MudCardHeader>
+                        <CardHeaderAvatar>
+                            <MudAvatar Color="@(isUnread ? Color.Primary : Color.Default)"
+                                       Variant="Variant.Filled">
+                                <MudIcon Icon="@(isUnread ? Icons.Material.Filled.NotificationsActive : Icons.Material.Outlined.Notifications)"/>
+                            </MudAvatar>
+                        </CardHeaderAvatar>
+
+                        <CardHeaderContent>
+                            <MudStack Row
+                                      AlignItems="AlignItems.Center"
+                                      Spacing="2">
+                                <MudText Typo="Typo.subtitle1"
+                                         Class="@(isUnread ? "fw-bold" : "")">
+                                    @ann["Title"]?.ToString()
+                                </MudText>
+
+                                @if (isUnread)
+                                {
+                                    <MudChip T="string"
+                                             Color="Color.Error"
+                                             Size="Size.Small"
+                                             Variant="Variant.Filled"
+                                             Class="ma-0 px-2 py-0">
+                                        NEW
+                                    </MudChip>
+                                }
+                            </MudStack>
+
+                            <MudText Typo="Typo.caption"
+                                     Class="mud-text-secondary">
+                                @ann["Date"]?.ToString()
+                            </MudText>
+                        </CardHeaderContent>
+
+                        <CardHeaderActions>
+                            <MudIconButton Icon="@Icons.Material.Filled.ArrowForwardIos"
+                                           Size="Size.Small"/>
+                        </CardHeaderActions>
+                    </MudCardHeader>
+                </MudCard>
+            }
+        </MudStack>
+    }
+    else
+    {
+        <MudContainer MaxWidth="MaxWidth.Small"
+                      Class="mt-4">
+            <MudCard Elevation="4">
+                <MudCardHeader>
+                    <CardHeaderContent>
+                        <MudStack Row
+                                  AlignItems="AlignItems.Center"
+                                  Justify="Justify.Center">
+                            <MudIcon Icon="@Icons.Material.Filled.Campaign"
+                                     Color="Color.Primary"/>
+                            <MudText Typo="Typo.h6"
+                                     Color="Color.Primary">
+                                @selectedBroadcast["Title"]?.ToString()
+                            </MudText>
+                        </MudStack>
+                    </CardHeaderContent>
+                </MudCardHeader>
+
+                <MudCardContent>
+                    <div style="height: 2px; background: linear-gradient(to right, var(--mud-palette-primary), transparent); margin: 16px 0;"/>
+                    <MudText Typo="Typo.body1">
+                        @((MarkupString)(selectedBroadcast["Body"]?.ToString() ?? ""))
+                    </MudText>
+                </MudCardContent>
+
+                <MudCardActions>
+                    <MudButton StartIcon="@Icons.Material.Filled.Close"
+                               Variant="Variant.Text"
+                               OnClick="Back">Close
+                    </MudButton>
+
+                    <MudSpacer/>
+
+                    <div class="d-flex justify-end w-100">
+                        <MudText Typo="Typo.caption"
+                                 Color="Color.Secondary"
+                                 Class="d-flex align-center">
+                            <MudIcon Icon="@Icons.Material.Filled.Event"
+                                     Size="Size.Small"
+                                     Class="mr-1"/>
+                            @selectedBroadcast["Date"]?.ToString()
+                        </MudText>
+                    </div>
+                </MudCardActions>
+            </MudCard>
+        </MudContainer>
+    }
+}
+
+@code
+{
+    private bool isLoading;
+    private string activeId = "0";
+    private List<Dictionary<string, object>> broadcasts = new();
+    private Dictionary<string, object>? selectedBroadcast;
+
+    // Store seen IDs locally to drive instant UI updates
+    private HashSet<string> readAnnouncementIds = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        isLoading = true;
+
+        try
+        {
+            // 1. Fetch read status settings from local DB
+            var settings = await SettingsService.GetSettingsAsync();
+
+            // Items with IsEnabled == 0 are marked as SEEN/READ
+            readAnnouncementIds = settings
+                .Where(s => s.SettingKey == "announcement" && s.IsEnabled == 0)
+                .Select(s => s.SettingValue)
+                .ToHashSet();
+
+            // 2. Load announcements from API
+            var response = await NevAPIService.GetBroadcastsAsync();
+            if (response?.Items != null)
+                broadcasts = response.Items.SelectMany(innerList => innerList).ToList();
+        }
+        catch (Exception ex)
+        {
+            LoggerService.Log($"OnInitializedAsync - {GetType().FullName}", ex);
+            Snackbar.Add(Constants.OnLoadErrorMessage, Severity.Error);
+        }
+
+        isLoading = false;
+    }
+
+    private bool IsAnnouncementUnread(string id)
+    {
+        if (string.IsNullOrWhiteSpace(id)) return false;
+
+        // If it's NOT in readAnnouncementIds, it's unread
+        return !readAnnouncementIds.Contains(id);
+    }
+
+    private async Task ShowDetail(Dictionary<string, object> announcement)
+    {
+        selectedBroadcast = announcement;
+
+        if (selectedBroadcast.TryGetValue("Id", out var idObj) && idObj != null)
+        {
+            var id = idObj.ToString() ?? string.Empty;
+            activeId = id;
+            if (!string.IsNullOrEmpty(id))
+            {
+                // Update local memory so returning to list immediately reflects read status
+                readAnnouncementIds.Add(id);
+
+                // Persist read status (IsEnabled = 0) in SQLite database
+                await SettingsService.SeenAnnouncementAsync(id, true);
+            }
+        }
+    }
+
+    private async Task Back()
+    {
+        // When closing detail view, return to the announcements list
+        selectedBroadcast = null;
+    }
+}

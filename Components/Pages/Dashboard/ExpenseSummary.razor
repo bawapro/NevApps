@@ -7,48 +7,140 @@
         table-layout: fixed !important;
         width: 100% !important;
     }
+
+    .expense-summary-grid .mud-table-cell {
+        overflow: visible;
+    }
+
+    .category-currency-block {
+        display: grid;
+        grid-template-columns: 1.25rem max-content;
+        justify-content: end;
+        align-items: center;
+        column-gap: 4px;
+        padding-right: 0.85rem;
+    }
+
+    .category-currency-block .mud-icon-root {
+        width: 1.25rem !important;
+        height: 1.25rem !important;
+        font-size: 1.15rem !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        line-height: 1 !important;
+        display: flex !important;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .category-currency-block .mud-icon-root svg {
+        width: 1.15rem;
+        height: 1.15rem;
+        display: block;
+    }
+
+    .category-currency-block .currency-amount {
+        text-align: left;
+        font-variant-numeric: tabular-nums;
+        line-height: 1.25rem;
+        white-space: nowrap;
+    }
+
+    .currency-code {
+        font-size: 0.68em;
+        font-weight: 500;
+        margin-left: 2px;
+        opacity: 0.85;
+    }
 </style>
 
 @if (isVisible)
 {
-    <MudStack Row AlignItems="AlignItems.Center" Justify="Justify.Center" Class="mb-2">
-        <MudText Typo="Typo.subtitle1" Style="font-style: italic; opacity: 0.85;" Class="mt-1">
-            @(showAll ? $"Annual Spending ({DateTime.Today.Year})" : $"Your Expenses for {DateTime.Now:MMMM}")
+    <MudStack Row
+              AlignItems="AlignItems.Center"
+              Justify="Justify.Center"
+              Class="mb-2">
+        <MudText Typo="Typo.subtitle1"
+                 Style="font-style: italic; opacity: 0.85;"
+                 Class="mt-1">
+            @(showAll ? $"Annual Spending ({DateTime.Today.Year})" : $"Your Expenses for {selectedMonth:MMMM yyyy}")
         </MudText>
 
-        <MudIconButton OnClick="async () => { showAll = !showAll; await LoadSummaryData(); }" Variant="Variant.Text" Color="Color.Primary" Size="Size.Small"
-                       Icon="@(showAll ? Icons.Material.Rounded.ArrowCircleLeft : Icons.Material.Rounded.ArrowCircleRight)" />
+        <MudIconButton OnClick="async () => { showAll = !showAll; await LoadSummaryData(); }"
+                       Variant="Variant.Text"
+                       Color="Color.Primary"
+                       Size="Size.Small"
+                       Icon="@(showAll ? Icons.Material.Rounded.ArrowCircleLeft : Icons.Material.Rounded.ArrowCircleRight)"/>
+        @if (summaryItems.Count > 0)
+        {
+            <MudIconButton OnClick="ToggleAllRows"
+                           Variant="Variant.Text"
+                           Color="Color.Primary"
+                           Size="Size.Small"
+                           Icon="@(_allExpanded ? Icons.Material.Filled.UnfoldLess : Icons.Material.Filled.UnfoldMore)"
+                           AriaLabel="@(_allExpanded ? "Collapse all" : "Expand all")"/>
+        }
     </MudStack>
 
-    <MudDataGrid @bind-SelectedItem="_selectedItem" T="ExpenseSummaryItem" Items="@summaryItems" RowClick="@RowClicked" Elevation="0"
-                 Hover="true" Dense="true" Groupable="true" Filterable="false">
+    <MudDataGrid Class="expense-summary-grid"
+                 T="ExpenseSummaryItem"
+                 Items="@summaryItems"
+                 RowClick="@RowClicked"
+                 Elevation="0"
+                 Hover="true"
+                 Dense="true"
+                 Groupable="true"
+                 Filterable="false">
         <Columns>
-            <TemplateColumn T="ExpenseSummaryItem" Title="@(isVisible ? (showAll ? "Monthly Breakdown" : "Category") : "")">
+            <TemplateColumn T="ExpenseSummaryItem"
+                            Title="@(isVisible ? showAll ? "Monthly Breakdown" : "Category" : "")">
                 <CellTemplate>
-                    <MudStack Spacing="0" Class="py-2">
+                    <MudStack Spacing="0"
+                              Class="py-2">
                         @* Top Line: Category and Amount *@
-                        <MudStack Row Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
-                            <MudText Typo="Typo.body1" Style="font-weight: 500;">
-                                @(showAll? context.Item.Month : context.Item.Category)
+                        <MudStack Row
+                                  Justify="Justify.SpaceBetween"
+                                  AlignItems="AlignItems.Center">
+                            <MudText Typo="Typo.body1"
+                                     Style="font-weight: 500;">
+                                @(showAll ? context.Item.Month : context.Item.Category)
                             </MudText>
 
-                            <MudText Typo="Typo.body1" Color="Color.Success" Style="font-weight: 700;">
-                                @context.Item.TotalAmount.ToString("C", new System.Globalization.CultureInfo(culture))
-                            </MudText>
+                            <div class="category-currency-block">
+                                @foreach (var total in context.Item.CurrencyTotals)
+                                {
+                                    <MudIcon Icon="@SettingsService.GetCurrencyIconForCode(total.CurrencyCode)"
+                                             Size="Size.Small"/>
+                                    <MudText Class="currency-amount"
+                                             Typo="Typo.body1"
+                                             Color="Color.Success"
+                                             Style="font-weight: 700;">
+                                        @AmountValue(total.Amount)
+                                        @if (ShowBracketCurrency(total.CurrencyCode))
+                                        {
+                                            <span class="currency-code">(@CurrencyFor(total.CurrencyCode))</span>
+                                        }
+                                    </MudText>
+                                }
+                            </div>
                         </MudStack>
 
                         @* Bottom Line: Tap Indicator *@
-                        <MudStack Row AlignItems="AlignItems.Center" Style="opacity: 0.5;">
-                            <MudText Typo="Typo.caption" Class="mr-1">Tap for details</MudText>
-                            <MudIcon Icon="@(_selectedItem == context.Item ? Icons.Material.Filled.KeyboardArrowUp : Icons.Material.Filled.KeyboardArrowDown)"
-                                     Size="Size.Small" />
+                        <MudStack Row
+                                  AlignItems="AlignItems.Center"
+                                  Style="opacity: 0.5;">
+                            <MudText Typo="Typo.caption"
+                                     Class="mr-1">Tap for details
+                            </MudText>
+                            <MudIcon Icon="@(IsOpen(context.Item) ? Icons.Material.Filled.KeyboardArrowUp : Icons.Material.Filled.KeyboardArrowDown)"
+                                     Size="Size.Small"/>
                         </MudStack>
                     </MudStack>
                 </CellTemplate>
             </TemplateColumn>
         </Columns>
         <ChildRowContent>
-            @if (_selectedItem == context.Item)
+            @if (IsOpen(context.Item))
             {
                 <MudCard Elevation="0"
                          Class="py-3 pr-3 pl-1 mb-2"
@@ -58,18 +150,36 @@
                     margin-left: 0;
                     width: 80%;">
 
-                    <MudStack Row AlignItems="AlignItems.Center" Class="mb-1">
-                        <MudIcon Icon="@Icons.Material.Filled.Label" Size="Size.Small" Color="Color.Primary" Class="mr-1" />
-                        <MudText Typo="Typo.overline" Color="Color.Primary" Style="line-height: 1;"><b>Type</b></MudText>
+                    <MudStack Row
+                              AlignItems="AlignItems.Center"
+                              Class="mb-1">
+                        <MudIcon Icon="@Icons.Material.Filled.Label"
+                                 Size="Size.Small"
+                                 Color="Color.Primary"
+                                 Class="mr-1"/>
+                        <MudText Typo="Typo.overline"
+                                 Color="Color.Primary"
+                                 Style="line-height: 1;"><b>Type</b></MudText>
                     </MudStack>
 
                     @foreach (var detail in context.Item.Details)
                     {
-                        <MudStack Row Justify="Justify.SpaceBetween" Class="py-1 pl-1">
+                        <MudStack Row
+                                  Justify="Justify.SpaceBetween"
+                                  Class="py-1 pl-1">
                             <MudText Typo="Typo.caption">@detail.Name</MudText>
-                            <MudText Typo="Typo.caption" Style="font-weight: 600;">
-                                @detail.Amount.ToString("C", new CultureInfo(culture))
-                            </MudText>
+                            <MudStack Row="true"
+                                      AlignItems="AlignItems.Center"
+                                      Spacing="0">
+                                <MudText Typo="Typo.caption"
+                                         Style="font-weight: 600;">
+                                    @AmountValue(detail.Amount)
+                                    @if (ShowBracketCurrency(detail.CurrencyCode))
+                                    {
+                                        <span class="currency-code">(@CurrencyFor(detail.CurrencyCode))</span>
+                                    }
+                                </MudText>
+                            </MudStack>
                         </MudStack>
                     }
                 </MudCard>
@@ -77,75 +187,176 @@
         </ChildRowContent>
 
         <NoRecordsContent>
-            <MudStack AlignItems="AlignItems.Center" Class="pa-8">
-                <MudIcon Icon="@Icons.Material.Rounded.ReceiptLong" Size="Size.Large" Style="opacity:0.2;" />
-                <MudText Typo="Typo.body2" Align="Align.Center" Style="opacity: 0.6;">
+            <MudStack AlignItems="AlignItems.Center"
+                      Class="pa-8">
+                <MudIcon Icon="@Icons.Material.Rounded.ReceiptLong"
+                         Size="Size.Large"
+                         Style="opacity:0.2;"/>
+                <MudText Typo="Typo.body2"
+                         Align="Align.Center"
+                         Style="opacity: 0.6;">
                     @noRecordsLabel
                 </MudText>
             </MudStack>
         </NoRecordsContent>
     </MudDataGrid>
+
+    @if (CanGoOlder || CanGoNewer)
+    {
+        <MudStack Row="true"
+                  Justify="Justify.SpaceBetween"
+                  AlignItems="AlignItems.Center"
+                  Class="mt-1">
+            <div>
+                @if (CanGoOlder)
+                {
+                    <MudIconButton OnClick="ShowOlderMonth"
+                                   Icon="@Icons.Material.Filled.ChevronLeft"
+                                   Color="Color.Primary"
+                                   Size="Size.Medium"
+                                   AriaLabel="Previous month"/>
+                }
+            </div>
+            <div>
+                @if (CanGoNewer)
+                {
+                    <MudIconButton OnClick="ShowNewerMonth"
+                                   Icon="@Icons.Material.Filled.ChevronRight"
+                                   Color="Color.Primary"
+                                   Size="Size.Medium"
+                                   AriaLabel="Next month"/>
+                }
+            </div>
+        </MudStack>
+    }
 }
 
 @code {
 
-    private bool showAll = false, isVisible = false;
-    private string culture = "", noRecordsLabel = "";
+    private bool showAll, isVisible;
+    private string culture = "", noRecordsLabel = "", homeCurrency = "CAD";
     private List<ExpenseTracker> allExpenses = new();
     private List<ExpenseSummaryItem> summaryItems = new();
-    private ExpenseSummaryItem? _selectedItem;
+    private List<DateTime> expenseMonths = new();
+    private readonly HashSet<ExpenseSummaryItem> _openItems = new();
+    private DateTime selectedMonth = new(DateTime.Today.Year, DateTime.Today.Month, 1);
+    private bool _allExpanded;
+
+    private bool CanGoOlder =>
+        !showAll && MonthIndex > 0;
+
+    private bool CanGoNewer =>
+        !showAll && MonthIndex >= 0 && MonthIndex < expenseMonths.Count - 1;
+
+    private int MonthIndex =>
+        expenseMonths.FindIndex(month => month.Year == selectedMonth.Year && month.Month == selectedMonth.Month);
 
     protected override async Task OnInitializedAsync()
     {
         try
         {
-            List<Setting> Settings = await SettingsService.GetSettingsAsync();
-            string country = Settings.Where(x => x.SettingKey == "country").FirstOrDefault()?.SettingValue!;
+            var Settings = await SettingsService.GetSettingsAsync();
+            var country = Settings.Where(x => x.SettingKey == "country").FirstOrDefault()?.SettingValue!;
             culture = SettingsService.GetCultureCode(country);
+            homeCurrency = await SettingsService.GetHomeCurrencyCodeAsync();
             await LoadSummaryData();
             noRecordsLabel = allExpenses.Count > 0 && summaryItems.Count == 0 ? "No Records for current Month. Start entering your expenses." : "";
         }
         catch (Exception ex)
         {
-            LoggerService.Log($"OnInitializedAsync - {this.GetType().FullName}", ex);
+            LoggerService.Log($"OnInitializedAsync - {GetType().FullName}", ex);
             Snackbar.Add(Constants.OnLoadErrorMessage, Severity.Error);
         }
     }
 
+    private bool IsOpen(ExpenseSummaryItem item) => _openItems.Contains(item);
+
     private void RowClicked(DataGridRowClickEventArgs<ExpenseSummaryItem> args)
     {
-        if (_selectedItem == args.Item)
-        {
-            _selectedItem = null;
-        }
-        else
-        {
-            _selectedItem = args.Item;
-        }
+        if (!_openItems.Add(args.Item))
+            _openItems.Remove(args.Item);
 
         StateHasChanged();
     }
+
+    private async Task ShowOlderMonth()
+    {
+        var index = MonthIndex;
+        if (index <= 0)
+            return;
+
+        selectedMonth = expenseMonths[index - 1];
+        await LoadSummaryData();
+    }
+
+    private async Task ShowNewerMonth()
+    {
+        var index = MonthIndex;
+        if (index < 0 || index >= expenseMonths.Count - 1)
+            return;
+
+        selectedMonth = expenseMonths[index + 1];
+        await LoadSummaryData();
+    }
+
+    private void ToggleAllRows()
+    {
+        if (_allExpanded)
+        {
+            _openItems.Clear();
+            _allExpanded = false;
+            return;
+        }
+
+        foreach (var item in summaryItems)
+            _openItems.Add(item);
+        _allExpanded = true;
+    }
+
     private async Task LoadSummaryData()
     {
+        _openItems.Clear();
+        _allExpanded = false;
         allExpenses = await ExpenseTrackerService.GetAllExpensesAsync();
         var today = DateTime.Today;
         var cultureObj = new CultureInfo(culture);
+        var currentMonth = new DateTime(today.Year, today.Month, 1);
+
+        expenseMonths = allExpenses
+            .Where(x => x.Category != "Income")
+            .Select(x => new DateTime(x.Date.Year, x.Date.Month, 1))
+            .Append(currentMonth)
+            .Distinct()
+            .OrderBy(month => month)
+            .ToList();
+
+        if (MonthIndex < 0)
+            selectedMonth = expenseMonths[^1];
 
         if (!showAll)
         {
             summaryItems = allExpenses
-                .Where(x => x.Date.Month == today.Month && x.Date.Year == today.Year && x.Category != "Income")
+                .Where(x => x.Date.Month == selectedMonth.Month && x.Date.Year == selectedMonth.Year && x.Category != "Income")
                 .GroupBy(x => x.Category)
                 .Select(g => new ExpenseSummaryItem
                 {
                     Category = g.Key,
                     TotalAmount = g.Sum(e => e.Price),
-                    Details = g.GroupBy(sub => sub.Type)
-                               .Select(d => new CategoryBreakup
-                               {
-                                   Name = d.Key ?? "Uncategorized",
-                                   Amount = d.Sum(s => s.Price)
-                               }).ToList()
+                    CurrencyTotals = g.GroupBy(e => CurrencyFor(e.CurrencyCode))
+                        .Select(total => new CurrencyTotal
+                        {
+                            CurrencyCode = total.Key,
+                            Amount = total.Sum(e => e.Price)
+                        }).ToList(),
+                    Details = g.GroupBy(sub => new { sub.Type, CurrencyCode = CurrencyFor(sub.CurrencyCode) })
+                        .Select(d => new CategoryBreakup
+                        {
+                            Name = d.Key.Type ?? "Uncategorized",
+                            CurrencyCode = d.Key.CurrencyCode,
+                            Amount = d.Sum(s => s.Price)
+                        })
+                        .OrderBy(d => d.Amount)
+                        .ToList()
                 })
                 .OrderByDescending(x => x.TotalAmount)
                 .ToList();
@@ -160,40 +371,72 @@
                     // Use the user's culture for the month name
                     Month = cultureObj.DateTimeFormat.GetMonthName(g.Key),
                     TotalAmount = g.Sum(e => e.Price),
-                    Details = g.GroupBy(c => c.Category)
-                               .Select(sub => new CategoryBreakup
-                               {
-                                   Name = sub.Key,
-                                   Amount = sub.Sum(s => s.Price)
-                               }).ToList()
+                    CurrencyTotals = g.GroupBy(e => CurrencyFor(e.CurrencyCode))
+                        .Select(total => new CurrencyTotal
+                        {
+                            CurrencyCode = total.Key,
+                            Amount = total.Sum(e => e.Price)
+                        }).ToList(),
+                    Details = g.GroupBy(c => new { c.Category, CurrencyCode = CurrencyFor(c.CurrencyCode) })
+                        .Select(sub => new CategoryBreakup
+                        {
+                            Name = sub.Key.Category,
+                            CurrencyCode = sub.Key.CurrencyCode,
+                            Amount = sub.Sum(s => s.Price)
+                        })
+                        .OrderBy(sub => sub.Amount)
+                        .ToList()
                 })
                 .OrderBy(x => DateTime.ParseExact(x.Month, "MMMM", cultureObj).Month)
                 .ToList();
         }
+
         isVisible = summaryItems.Any() || allExpenses.Any();
+        noRecordsLabel = summaryItems.Count == 0 && allExpenses.Count > 0
+            ? "No records for this month."
+            : "";
         StateHasChanged();
     }
 
-    private void ToggleRow(ExpenseSummaryItem item)
+    private string CurrencyFor(string? currencyCode)
     {
-        if (_selectedItem == item)
-            _selectedItem = null;
-        else
-            _selectedItem = item;
+        return string.IsNullOrWhiteSpace(currencyCode) ? homeCurrency : currencyCode.Trim().ToUpperInvariant();
+    }
+
+    private string AmountValue(decimal amount)
+    {
+        return amount.ToString("N2", CultureInfo.InvariantCulture);
+    }
+
+    private bool ShowBracketCurrency(string currencyCode)
+    {
+        var currency = CurrencyFor(currencyCode);
+        return currency != homeCurrency &&
+               SettingsService.GetCurrencyIconForCode(currency) == Icons.Material.Filled.AttachMoney;
     }
 
     public class ExpenseSummaryItem
     {
         public string Month { get; set; } = "";
         public string Category { get; set; } = "";
+        public string CurrencyCode { get; set; } = "";
         public decimal TotalAmount { get; set; }
+        public List<CurrencyTotal> CurrencyTotals { get; set; } = new();
         public List<CategoryBreakup> Details { get; set; } = new();
         public bool ShowDetails { get; set; }
     }
 
-    public class CategoryBreakup
+    public class CurrencyTotal
     {
-        public string Name { get; set; } = "";// Can be Category OR Type
+        public string CurrencyCode { get; set; } = "";
         public decimal Amount { get; set; }
     }
+
+    public class CategoryBreakup
+    {
+        public string Name { get; set; } = ""; // Can be Category OR Type
+        public string CurrencyCode { get; set; } = "";
+        public decimal Amount { get; set; }
+    }
+
 }

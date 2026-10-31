@@ -1,0 +1,43 @@
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6"
+                 Color="Color.Primary">
+            Select Your Store
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudList T="string"
+                 Dense="true"
+                 Class="pa-0">
+            @foreach (var name in MatchingPlaces)
+            {
+                <MudListItem T="string"
+                             OnClick="@(() => Choose(name))">
+                    @name
+                </MudListItem>
+            }
+        </MudList>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel"
+                   Variant="Variant.Text">
+            Cancel
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter] public IReadOnlyList<string> MatchingPlaces { get; set; } = [];
+
+    private void Choose(string name)
+    {
+        MudDialog.Close(DialogResult.Ok(name));
+    }
+
+    private void Cancel()
+    {
+        MudDialog.Cancel();
+    }
+}

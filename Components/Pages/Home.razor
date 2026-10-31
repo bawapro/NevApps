@@ -1,7 +1,9 @@
 ﻿@page "/"
-@implements IDisposable
+@inject ReminderService ReminderService
 @using NevApps.Components.Pages.Dashboard
+@implements IDisposable
 
+<PullToRefresh OnRefresh="OnPullRefresh">
 @if (firstLaunch)
 {
     <MudAlert Severity="Severity.Info"
@@ -33,6 +35,21 @@ else
                          GutterBottom="false">
                     Dashboard
                 </MudText>
+
+                <MudSpacer/>
+
+                @if (showAnnouncement)
+                {
+                    <MudBadge Dot="showAnnouncement"
+                              Color="Color.Error"
+                              Overlap="true"
+                              Bordered="true"
+                              Visible="@(showAnnouncement)">
+                        <MudIconButton Icon="@Icons.Material.Filled.Campaign"
+                                       Size="Size.Large"
+                                       OnClick="@(() => NavigationManager.NavigateTo("/announce"))"/>
+                    </MudBadge>
+                }
             </MudStack>
         </MudContainer>
     }
@@ -46,10 +63,11 @@ else
         </MudAlert>
     }
 
-    @if (!isEmpty)
+    @if (isExpense || isAutoPay || isMileage || isShenshai)
     {
         <MudToggleGroup T="int"
                         @bind-Value="activeTab"
+                        @bind-Value:after="TrackDashboardTab"
                         Outlined="true"
                         Delimiters="true"
                         Class="mx-4 mt-2"
@@ -115,115 +133,91 @@ else
                 </MudToggleItem>
             }
         </MudToggleGroup>
-
-        <div class="pa-4">
-            @if (activeTab == 1 && isExpense)
-            {
-                <ExpenseSummary/>
-            }
-            else if (activeTab == 2 && isAutoPay)
-            {
-                <AutoPay/>
-            }
-            else if (activeTab == 3 && isMileage)
-            {
-                <MileageSummary/>
-            }
-            else if (activeTab == 4 && isShenshai)
-            {
-                <Reminders/>
-            }
-        </div>
     }
+
+    <div class="pa-4">
+        @if (activeTab == 1 && isExpense)
+        {
+            <ExpenseSummary @key="_paneKey"/>
+        }
+        else if (activeTab == 2 && isAutoPay)
+        {
+            <AutoPay @key="_paneKey"/>
+        }
+        else if (activeTab == 4 && isShenshai)
+        {
+            <Reminders @key="_paneKey"/>
+        }
+
+        @if (_mileageMounted && isMileage)
+        {
+            <div class="@(activeTab == 3 ? null : "d-none")">
+                <MileageSummary @key="_paneKey"/>
+            </div>
+        }
+    </div>
 }
+</PullToRefresh>
 
 @code {
     private int activeTab = 1;
+    private int _paneKey;
+    private bool _mileageMounted;
+    private bool _ready;
+    private bool _reloading;
 
-    private bool firstLaunch = false,
-        isExpense = false,
-        isAutoPay = false,
-        isMileage = false,
-        isShenshai = false,
-        isEmpty = false,
-        showDashboard = false;
+    private bool firstLaunch,
+        isExpense,
+        isAutoPay,
+        isMileage,
+        isShenshai,
+        showAnnouncement,
+        isEmpty,
+        showDashboard;
 
     private bool UseDashboardIcons =>
         (isExpense ? 1 : 0) + (isAutoPay ? 1 : 0) + (isMileage ? 1 : 0) + (isShenshai ? 1 : 0) >= 4;
 
-    [CascadingParameter]
-    private SwipeCoordinator? SwipeCoordinator { get; set; }
-
-    private Func<MudBlazor.SwipeDirection, bool>? _pageSwipeHandler;
-
-    private List<int> VisibleTabs
-    {
-        get
-        {
-            var tabs = new List<int>(4);
-            if (isExpense) tabs.Add(1);
-            if (isAutoPay) tabs.Add(2);
-            if (isMileage) tabs.Add(3);
-            if (isShenshai) tabs.Add(4);
-            return tabs;
-        }
-    }
-
     protected override void OnInitialized()
     {
-        if (SwipeCoordinator is null)
-            return;
-
-        _pageSwipeHandler = TryHandleSwipe;
-        SwipeCoordinator.TryHandlePageSwipe = _pageSwipeHandler;
-    }
-
-    internal bool TryHandleSwipe(MudBlazor.SwipeDirection direction)
-    {
-        if (firstLaunch || isEmpty)
-            return false;
-
-        var tabs = VisibleTabs;
-        if (tabs.Count == 0)
-            return false;
-
-        var index = tabs.IndexOf(activeTab);
-        if (index < 0)
-            index = 0;
-
-        if (direction == MudBlazor.SwipeDirection.RightToLeft && index < tabs.Count - 1)
-        {
-            activeTab = tabs[index + 1];
-            StateHasChanged();
-            return true;
-        }
-
-        if (direction == MudBlazor.SwipeDirection.LeftToRight && index > 0)
-        {
-            activeTab = tabs[index - 1];
-            StateHasChanged();
-            return true;
-        }
-
-        return false;
+        NavigationManager.LocationChanged += OnLocationChanged;
     }
 
     protected override async Task OnInitializedAsync()
     {
         try
         {
-            var Settings = await SettingsService.GetSettingsAsync();
-            firstLaunch = Settings.Count <= 1;
-            if (firstLaunch)
-                return;
+            await LoadDashboardAsync(true);
+        }
+        catch (Exception ex)
+        {
+            LoggerService.Log($"OnInitializedAsync - {GetType().FullName}", ex);
+            Snackbar.Add(Constants.OnLoadErrorMessage, Severity.Error);
+        }
+        finally
+        {
+            _ready = true;
+        }
+    }
 
-            var autoPayments = await ExpenseTrackerService.GetAutoPayments(true);
-            if (autoPayments != null && autoPayments.Count() > 0)
-                await UpdateAutoPay(autoPayments);
+    private async Task LoadDashboardAsync(bool setDefaultTab)
+    {
+        var Settings = await SettingsService.GetSettingsAsync();
+        firstLaunch = Settings.Count <= 1;
+        if (firstLaunch)
+            return;
 
-            showDashboard = await SettingsService.CheckDashboardAsync();
-            (isExpense, isAutoPay, isMileage, isShenshai) = await SettingsService.CheckDashboardCountsAsync();
+        var autoPayments = await ExpenseTrackerService.GetAutoPayments(true);
+        if (autoPayments != null && autoPayments.Count() > 0)
+            await UpdateAutoPay(autoPayments);
 
+        showDashboard = await SettingsService.CheckDashboardAsync();
+        (isExpense, isAutoPay, isMileage, isShenshai) = await SettingsService.CheckDashboardCountsAsync();
+        if (isShenshai)
+            isShenshai = await ReminderService.HasUpcomingRemindersAsync();
+
+        if (setDefaultTab || !IsTabAvailable(activeTab))
+        {
             if (isExpense)
                 activeTab = 1;
             else if (isAutoPay)
@@ -233,16 +227,103 @@ else
             else if (isShenshai)
                 activeTab = 4;
             else
-                activeTab = 0; // nothing enabled
+                activeTab = 0;
+        }
+        
+        showAnnouncement = await SettingsService.CheckNewAnnouncement();
 
-            if (isExpense == false && isMileage == false && isAutoPay == false && isShenshai == false)
-                isEmpty = true;
+        isEmpty = !isExpense && !isMileage && !isAutoPay && !isShenshai;
+        if (isMileage)
+        {
+            if (activeTab == 3)
+                _mileageMounted = true;
+            MileageTrackerService.WarmDashboard();
+        }
+    }
+
+    private async Task OnPullRefresh()
+    {
+        if (_reloading)
+            return;
+
+        _reloading = true;
+        try
+        {
+            await LoadDashboardAsync(false);
+            _paneKey++;
         }
         catch (Exception ex)
         {
-            LoggerService.Log($"OnInitializedAsync - {this.GetType().FullName}", ex);
+            LoggerService.Log($"OnPullRefresh - {GetType().FullName}", ex);
             Snackbar.Add(Constants.OnLoadErrorMessage, Severity.Error);
         }
+        finally
+        {
+            _reloading = false;
+        }
+    }
+
+    private void TrackDashboardTab()
+    {
+        if (activeTab == 3)
+            _mileageMounted = true;
+    }
+
+    private bool IsTabAvailable(int tab)
+    {
+        return tab switch
+        {
+            1 => isExpense,
+            2 => isAutoPay,
+            3 => isMileage,
+            4 => isShenshai,
+            _ => false
+        };
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        if (!_ready || !IsDashboardPath())
+            return;
+
+        _ = InvokeAsync(TryReloadDashboardAsync);
+    }
+
+    private bool IsDashboardPath()
+    {
+        var path = "/" + NavigationManager.ToBaseRelativePath(NavigationManager.Uri);
+        if (path.Length > 1)
+            path = path.TrimEnd('/');
+        return string.Equals(path, NavSections.Home, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private async Task TryReloadDashboardAsync()
+    {
+        if (_reloading || !StateService.DashboardReload)
+            return;
+
+        StateService.DashboardReload = false;
+        _reloading = true;
+        try
+        {
+            await LoadDashboardAsync(false);
+            _paneKey++;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            LoggerService.Log($"TryReloadDashboardAsync - {GetType().FullName}", ex);
+            Snackbar.Add(Constants.OnLoadErrorMessage, Severity.Error);
+        }
+        finally
+        {
+            _reloading = false;
+        }
+    }
+
+    public void Dispose()
+    {
+        NavigationManager.LocationChanged -= OnLocationChanged;
     }
 
     private async Task UpdateAutoPay(List<NevDBClass.Models.ExpenseTracker> autoPayments)
@@ -254,14 +335,14 @@ else
             {
                 try
                 {
-                    int id = payment.Id;
-                    DateOnly oldDate = payment.Date;
-                    
+                    var id = payment.Id;
+                    var oldDate = payment.Date;
+
                     //Insert new entry
                     payment.Id = 0;
                     payment.Date = payment.AutoPayDate.Value;
                     payment.AutoPayDate = ExpenseTrackerService.GetNextDate(payment.AutoPayDate.Value, payment.Frequency);
-                    int n = await ExpenseTrackerService.UpdateAutoPaymentsAsync(payment);
+                    var n = await ExpenseTrackerService.UpdateAutoPaymentsAsync(payment);
 
                     //Update previous entry
                     payment.Id = id;
@@ -282,9 +363,4 @@ else
         }
     }
 
-    public void Dispose()
-    {
-        if (SwipeCoordinator is not null && SwipeCoordinator.TryHandlePageSwipe == _pageSwipeHandler)
-            SwipeCoordinator.TryHandlePageSwipe = null;
-    }
 }

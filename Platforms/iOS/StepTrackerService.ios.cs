@@ -6,22 +6,20 @@ namespace NevApps.Platforms.iOS;
 
 public class StepTrackerService : IStepTrackerService
 {
+    private Timer? _backgroundTimer;
+
+    private int? _initialStepBaseline;
+    private DateTime _lastGeocodeTime = DateTime.MinValue;
+    private CLLocation? _lastGpsLocation;
+    private DateTime _lastMovementTime = DateTime.UtcNow;
+    private CLLocationManager? _locationManager;
+    private int _stepsAccumulatedBeforePause;
     public bool IsTracking { get; private set; }
     public int CurrentSteps { get; private set; }
     public double TotalDistanceKm { get; private set; }
     public char StatusCode { get; private set; } = 'R';
     public string CurrentPlaceName { get; private set; } = "Locating...";
-
-    private int _elapsedSeconds = 0;
-    public int TotalSeconds => _elapsedSeconds;
-
-    private int? _initialStepBaseline;
-    private int _stepsAccumulatedBeforePause = 0;
-    private DateTime _lastMovementTime = DateTime.UtcNow;
-    private DateTime _lastGeocodeTime = DateTime.MinValue;
-    private CLLocation? _lastGpsLocation;
-    private CLLocationManager? _locationManager;
-    private Timer? _backgroundTimer;
+    public int TotalSeconds { get; private set; }
 
     public event Action<int>? OnStepCountChanged;
     public event Action<double>? OnDistanceChanged;
@@ -55,6 +53,16 @@ public class StepTrackerService : IStepTrackerService
         NotifyUi();
     }
 
+    public void PauseTracking()
+    {
+        StopHardware(true);
+    }
+
+    public void StopTracking()
+    {
+        StopHardware(false);
+    }
+
     private void ResetSessionData()
     {
         CurrentSteps = 0;
@@ -62,7 +70,7 @@ public class StepTrackerService : IStepTrackerService
         _initialStepBaseline = null;
         _stepsAccumulatedBeforePause = 0;
         _lastGpsLocation = null;
-        _elapsedSeconds = 0;
+        TotalSeconds = 0;
     }
 
     private void SetupLocationManager()
@@ -100,16 +108,13 @@ public class StepTrackerService : IStepTrackerService
             // Only increment time when NOT idle
             if (StatusCode != 'I' && StatusCode != 'S' && StatusCode != 'R')
             {
-                _elapsedSeconds++;
+                TotalSeconds++;
                 OnTimerTicked?.Invoke();
             }
 
-            CheckIdleState();   // Still check for idle/moving transitions
+            CheckIdleState(); // Still check for idle/moving transitions
         }, null, 0, 1000);
     }
-
-    public void PauseTracking() => StopHardware(true);
-    public void StopTracking() => StopHardware(false);
 
     private void StopHardware(bool isPause)
     {
@@ -135,7 +140,7 @@ public class StepTrackerService : IStepTrackerService
         if (_initialStepBaseline == null)
             _initialStepBaseline = e.NumberOfSteps;
 
-        int stepsThisSession = e.NumberOfSteps - _initialStepBaseline.Value;
+        var stepsThisSession = e.NumberOfSteps - _initialStepBaseline.Value;
         CurrentSteps = stepsThisSession + _stepsAccumulatedBeforePause;
 
         OnStepCountChanged?.Invoke(CurrentSteps);
@@ -163,7 +168,7 @@ public class StepTrackerService : IStepTrackerService
         // Distance
         if (StatusCode == 'M' && _lastGpsLocation != null)
         {
-            double distanceDelta = _lastGpsLocation.DistanceFrom(currentGps) / 1000.0;
+            var distanceDelta = _lastGpsLocation.DistanceFrom(currentGps) / 1000.0;
             if (distanceDelta > 0.002 && WasMovingRecently())
             {
                 TotalDistanceKm += distanceDelta;
@@ -181,18 +186,19 @@ public class StepTrackerService : IStepTrackerService
         }
     }
 
-    private bool WasMovingRecently() => (DateTime.UtcNow - _lastMovementTime).TotalSeconds < 15;
+    private bool WasMovingRecently()
+    {
+        return (DateTime.UtcNow - _lastMovementTime).TotalSeconds < 15;
+    }
 
     private void CheckIdleState()
     {
         if (DateTime.UtcNow - _lastMovementTime >= TimeSpan.FromMinutes(1))
-        {
             if (StatusCode != 'I')
             {
                 StatusCode = 'I';
                 OnStatusUpdated?.Invoke(StatusCode);
             }
-        }
     }
 
     private async Task UpdatePlaceNameAsync(Location location)
@@ -204,7 +210,7 @@ public class StepTrackerService : IStepTrackerService
 
             if (placemark != null)
             {
-                string name = string.IsNullOrEmpty(placemark.Thoroughfare)
+                var name = string.IsNullOrEmpty(placemark.Thoroughfare)
                     ? placemark.Locality ?? "Unknown"
                     : $"{placemark.Thoroughfare}, {placemark.Locality}";
 

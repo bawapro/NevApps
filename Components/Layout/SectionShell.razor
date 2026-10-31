@@ -4,10 +4,12 @@
 @using ShenshaiView = NevApps.Components.Pages.Shenshai.View
 @using StepsAdd = NevApps.Components.Pages.StepTracker.Add
 @using SettingsView = NevApps.Components.Pages.Settings.View
+@using SupportView = NevApps.Components.Pages.Support.View
 @inject IJSRuntime JS
 @implements IDisposable
 
-<div @ref="_viewport" class="@SwipeClass">
+<div @ref="_viewport"
+     class="@SwipeClass">
     <div class="section-shell-viewport">
         @foreach (var path in _pages)
         {
@@ -17,7 +19,7 @@
                  style="@PaneStyle(slot)">
                 @if (_mounted.Contains(path))
                 {
-                    <KeepAlivePane>
+                    <KeepAlivePane IsActive="@(slot == 0)">
                         @SectionContent(path)
                     </KeepAlivePane>
                 }
@@ -91,8 +93,8 @@
     }
 
     /// <summary>
-    /// Instantly show a shell section. Used by top-nav taps so the pane
-    /// always follows the URL, even if a swipe animation is in flight.
+    ///     Instantly show a shell section. Used by top-nav taps so the pane
+    ///     always follows the URL, even if a swipe animation is in flight.
     /// </summary>
     public void Show(string path)
     {
@@ -235,9 +237,11 @@
     }
 
     private string PaneClass(int slot)
-        => slot == 0
-            ? (_settling ? "section-pane is-current is-sliding" : "section-pane is-current")
+    {
+        return slot == 0
+            ? _settling ? "section-pane is-current is-sliding" : "section-pane is-current"
             : "section-pane";
+    }
 
     private string PaneStyle(int slot)
     {
@@ -255,7 +259,10 @@
         };
     }
 
-    private void EnsureMounted(string path) => _mounted.Add(path);
+    private void EnsureMounted(string path)
+    {
+        _mounted.Add(path);
+    }
 
     private bool MountNeighbors()
     {
@@ -270,24 +277,34 @@
         return changed;
     }
 
-    private string CurrentPath() => NavigationManager.ToBaseRelativePath(NavigationManager.Uri);
-
-    private static RenderFragment SectionContent(string path) => path switch
+    private string CurrentPath()
     {
-        NavSections.Home => Wrap<Home>(),
-        NavSections.Expense => Wrap<ExpenseAdd>(),
-        NavSections.Mileage => Wrap<MileageAdd>(),
-        NavSections.Shenshai => Wrap<ShenshaiView>(),
-        NavSections.Steps => Wrap<StepsAdd>(),
-        NavSections.Settings => Wrap<SettingsView>(),
-        _ => _ => { }
-    };
+        return NavigationManager.ToBaseRelativePath(NavigationManager.Uri);
+    }
 
-    private static RenderFragment Wrap<T>() where T : IComponent => builder =>
+    private static RenderFragment SectionContent(string path)
     {
-        builder.OpenComponent<T>(0);
-        builder.CloseComponent();
-    };
+        return path switch
+        {
+            NavSections.Home => Wrap<Home>(),
+            NavSections.Expense => Wrap<ExpenseAdd>(),
+            NavSections.Mileage => Wrap<MileageAdd>(),
+            NavSections.Shenshai => Wrap<ShenshaiView>(),
+            NavSections.Steps => Wrap<StepsAdd>(),
+            NavSections.Settings => Wrap<SettingsView>(),
+            NavSections.Support => Wrap<SupportView>(),
+            _ => _ => { }
+        };
+    }
+
+    private static RenderFragment Wrap<T>() where T : IComponent
+    {
+        return builder =>
+        {
+            builder.OpenComponent<T>(0);
+            builder.CloseComponent();
+        };
+    }
 
     private async Task AttachSwipeAsync()
     {
@@ -330,4 +347,5 @@
         _jsRef?.Dispose();
         _jsRef = null;
     }
+
 }

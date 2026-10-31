@@ -1,21 +1,44 @@
 ﻿<MudContainer>
     <MudPaper Outlined="true">
         <MudStack>
-            <MudRadioGroup T="string" Value="SelectedOption" ValueChanged="OnValueChanged">
-                <MudRadio Value="@("Fixed")" Color="Color.Primary" Dense="true" Size="Size.Small" Class="ml-2 mt-1">Fixed</MudRadio>
-                <MudRadio Value="@("Custom")" Color="Color.Secondary" Dense="true" Size="Size.Small" Class="ml-2 mt-1">Custom</MudRadio>
+            <MudRadioGroup T="string"
+                           Value="SelectedOption"
+                           ValueChanged="OnValueChanged">
+                <MudRadio Value="@("Fixed")"
+                          Color="Color.Primary"
+                          Dense="true"
+                          Size="Size.Small"
+                          Class="ml-2 mt-1">Fixed
+                </MudRadio>
+                <MudRadio Value="@("Custom")"
+                          Color="Color.Secondary"
+                          Dense="true"
+                          Size="Size.Small"
+                          Class="ml-2 mt-1">Custom
+                </MudRadio>
             </MudRadioGroup>
 
             @if (SelectedOption == "Fixed")
             {
-                <MudText Typo="Typo.caption" Class="ml-2">(Selected: @(SelectedCategories == null ? 0 : SelectedCategories.Count))</MudText>
-                <MudChipSet SelectedValues="SelectedCategories" SelectedValuesChanged="OnSelectedValuesChanged" T="string" SelectionMode="SelectionMode.MultiSelection" Color="Color.Tertiary" Variant="Variant.Text">
+                <MudText Typo="Typo.caption"
+                         Class="ml-2">(Selected: @(SelectedCategories == null ? 0 : SelectedCategories.Count))
+                </MudText>
+                <MudChipSet SelectedValues="SelectedCategories"
+                            SelectedValuesChanged="OnSelectedValuesChanged"
+                            T="string"
+                            SelectionMode="SelectionMode.MultiSelection"
+                            Color="Color.Tertiary"
+                            Variant="Variant.Text">
                     @foreach (var category in AllCategories!)
                     {
-                        <MudChip Text="@category" Size="Size.Small" />
+                        <MudChip Text="@category"
+                                 Size="Size.Small"/>
                     }
                 </MudChipSet>
-                <MudText Typo="Typo.caption" Align="Align.Center" Color="Color.Warning">Tap it to select or deselect.</MudText>
+                <MudText Typo="Typo.caption"
+                         Align="Align.Center"
+                         Color="Color.Warning">Tap it to select or deselect.
+                </MudText>
             }
 
         </MudStack>
@@ -46,9 +69,9 @@
         if (CategorySetting.Any())
         {
             SelectedCategories = (CategorySetting.Select(s => s.SettingValue)
-                                 .FirstOrDefault() ?? "")
-                                 .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                                 .ToList();
+                    .FirstOrDefault() ?? "")
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .ToList();
 
             SelectedOption = SelectedCategories.Count == 0 ? "Custom" : "Fixed";
         }
@@ -58,7 +81,6 @@
             SelectedCategories = AllCategories;
             SelectedOption = "Fixed";
         }
-
     }
 
     private async Task OnValueChanged(string value)
@@ -93,4 +115,5 @@
             await SelectedCategoryChanged.InvokeAsync(null);
         }
     }
+
 }

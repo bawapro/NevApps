@@ -1,14 +1,18 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+          name="viewport"/>
     <title>NevApps</title>
-    <base href="/" />
-    <link rel="stylesheet" href="app.css" />
+    <base href="/"/>
+    <link href="app.css"
+          rel="stylesheet"/>
     <!--<link rel="stylesheet" href="NevApps.styles.css" />-->
-    <link rel="icon" href="data:,">
-    <link href="_content/MudBlazor/MudBlazor.min.css" rel="stylesheet" />
+    <link href="data:,"
+          rel="icon">
+    <link href="_content/MudBlazor/MudBlazor.min.css"
+          rel="stylesheet"/>
 
     <style>
         .loading-container {
@@ -169,49 +173,41 @@
 
 <body>
 
-    <div class="status-bar-safe-area"></div>
+<div class="status-bar-safe-area"></div>
 
-    <div id="app">
-        <div class="loading-container">
-            <div class="loading-mark">
-                <div class="loading-ring"></div>
-                <img alt="NevApps"
-                     src="images/logo.png"/>
-            </div>
-            <p class="loading-title">NevApps</p>
-            <p class="loading-text">Initializing components<span class="loading-ellipsis"><span>.</span><span>.</span><span>.</span></span></p>
-<!--        <div class="loading-bar" aria-hidden="true"><span></span></div>-->
+<div id="app">
+    <div class="loading-container">
+        <div class="loading-mark">
+            <div class="loading-ring"></div>
+            <img alt="NevApps"
+                 src="images/logo.png"/>
         </div>
+        <p class="loading-title">NevApps</p>
+        <p class="loading-text">Initializing components<span class="loading-ellipsis"><span>.</span><span>.</span><span>.</span></span></p>
+<!--        <div class="loading-bar" aria-hidden="true"><span></span></div>-->
     </div>
+</div>
 
-    <div id="blazor-error-ui" data-nosnippet>
-        An unhandled error has occurred.
-        <a href="." class="reload">Reload</a>
-        <span class="dismiss">🗙</span>
-    </div>
+<div data-nosnippet
+     id="blazor-error-ui">
+    An unhandled error has occurred.
+    <a class="reload"
+       href=".">Reload</a>
+    <span class="dismiss">🗙</span>
+</div>
 
-    <script>
-        (function () {
-            var ua = navigator.userAgent || "";
-            var ios = /iP(hone|ad|od)/.test(ua)
-                || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-            var android = /Android/i.test(ua);
-            if (android) document.documentElement.classList.add("app-android");
-            if (!ios) return;
-            var meta = document.querySelector('meta[name="viewport"]');
-            if (meta) {
-                meta.setAttribute("content",
-                    meta.getAttribute("content") + ", interactive-widget=resizes-content");
-            }
-            if (!window.visualViewport) return;
-            var pin = function () { window.scrollTo(0, 0); };
-            visualViewport.addEventListener("scroll", pin);
-            visualViewport.addEventListener("resize", pin);
-        })();
-    </script>
-    <script src="_framework/blazor.webview.js" autostart="false"></script>
-    <script src="_content/MudBlazor/MudBlazor.min.js"></script>
-    <script src="js/section-swipe.js"></script>
+<script>
+    (function () {
+        if (/Android/i.test(navigator.userAgent || "")) {
+            document.documentElement.classList.add("app-android");
+        }
+    })();
+</script>
+<script autostart="false"
+        src="_framework/blazor.webview.js"></script>
+<script src="_content/MudBlazor/MudBlazor.min.js"></script>
+<script src="js/section-swipe.js"></script>
+<script src="js/pull-to-refresh.js"></script>
 
 </body>
 

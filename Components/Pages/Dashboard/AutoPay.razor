@@ -13,82 +13,161 @@
 {
     @if (!showAll)
     {
-        <MudStack Row AlignItems="AlignItems.Center" Justify="Justify.Center">
-            <MudText Typo="Typo.subtitle1" Style="font-style: italic; opacity: 0.85;" Class="ml-2 mt-1">
+        <MudStack Row
+                  AlignItems="AlignItems.Center"
+                  Justify="Justify.Center">
+            <MudText Typo="Typo.subtitle1"
+                     Style="font-style: italic; opacity: 0.85;"
+                     Class="ml-2 mt-1">
                 Your Upcoming Payments
             </MudText>
-            
+
             @if (autoPayments != null)
             {
-                <MudIconButton Variant="Variant.Text" Color="Color.Primary" Size="Size.Medium" Icon="@Icons.Material.Rounded.ArrowCircleRight" OnClick="() => showAll = true" />
+                <MudIconButton Variant="Variant.Text"
+                               Color="Color.Primary"
+                               Size="Size.Medium"
+                               Icon="@Icons.Material.Rounded.ArrowCircleRight"
+                               OnClick="() => showAll = true"/>
             }
         </MudStack>
     }
 
     @if (showAll)
     {
-        <MudStack Row AlignItems="AlignItems.Center" Justify="Justify.Center">
-            <MudText Typo="Typo.subtitle1" Style="font-style: italic; opacity: 0.85;" Class="ml-2 mt-1">
+        <MudStack Row
+                  AlignItems="AlignItems.Center"
+                  Justify="Justify.Center">
+            <MudText Typo="Typo.subtitle1"
+                     Style="font-style: italic; opacity: 0.85;"
+                     Class="ml-2 mt-1">
                 All Configured Auto-Payments
             </MudText>
-            <MudIconButton Variant="Variant.Text" Color="Color.Primary" OnClick="() => showAll = false" Size="Size.Medium" Class="mt-3" Icon="@Icons.Material.Rounded.ArrowCircleLeft" />
+            <MudIconButton Variant="Variant.Text"
+                           Color="Color.Primary"
+                           OnClick="() => showAll = false"
+                           Size="Size.Medium"
+                           Class="mt-3"
+                           Icon="@Icons.Material.Rounded.ArrowCircleLeft"/>
         </MudStack>
 
-        <MudDataGrid T="ExpenseTracker" Items="@currentPageItems" SortMode="SortMode.None" Breakpoint="Breakpoint.None" ColumnResizeMode="ResizeMode.Column"
-                     Dense="true" Hover="true" Bordered="true" Striped="true" HorizontalScrollbar="true" Filterable="true" Context="context"
-                     FilterMode="DataGridFilterMode.ColumnFilterMenu" FilterCaseSensitivity="DataGridFilterCaseSensitivity.CaseInsensitive"
-                     RowsPerPage="10" Style="overflow-x: auto;">
+        <MudDataGrid T="ExpenseTracker"
+                     Items="@currentPageItems"
+                     SortMode="SortMode.None"
+                     Breakpoint="Breakpoint.None"
+                     ColumnResizeMode="ResizeMode.Column"
+                     Dense="true"
+                     Hover="true"
+                     Bordered="true"
+                     Striped="true"
+                     HorizontalScrollbar="true"
+                     Filterable="true"
+                     Context="context"
+                     FilterMode="DataGridFilterMode.ColumnFilterMenu"
+                     FilterCaseSensitivity="DataGridFilterCaseSensitivity.CaseInsensitive"
+                     RowsPerPage="10"
+                     Style="overflow-x: auto;">
             <Columns>
                 <TemplateColumn>
                     <CellTemplate>
-                        <MudStack Spacing="0" Class="py-2">
-                            <MudStack Row="true" Justify="Justify.SpaceBetween">
-                                <MudText Typo="Typo.caption" Color="Color.Primary">
+                        <MudStack Spacing="0"
+                                  Class="py-2">
+                            <MudStack Row="true"
+                                      Justify="Justify.SpaceBetween">
+                                <MudText Typo="Typo.caption"
+                                         Color="Color.Primary">
                                     <b>Next: @(context.Item.AutoPayDate?.ToString("ddd, MMM dd"))</b>
                                 </MudText>
-                                <MudText Typo="Typo.caption" Style="opacity:0.7">
+                                <MudText Typo="Typo.caption"
+                                         Style="opacity:0.7">
                                     @context.Item.Category • @context.Item.Type
                                 </MudText>
                             </MudStack>
 
-                            <MudText Typo="Typo.body2" Class="my-1">
+                            <MudText Typo="Typo.body2"
+                                     Class="my-1">
                                 <b>@context.Item.Detail</b>
                             </MudText>
 
-                            <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
-                                <MudText Typo="Typo.body1" Color="@(context.Item.Category == "Income" ? Color.Secondary : Color.Warning)">
-                                    <b>@context.Item.Price.ToString("C", new CultureInfo(culture))</b>
-                                </MudText>
-                                <MudText Typo="Typo.caption" Class="font-italic">
+                            <MudStack Row="true"
+                                      Justify="Justify.SpaceBetween"
+                                      AlignItems="AlignItems.Center">
+                                <MudStack Row="true"
+                                          AlignItems="AlignItems.Center"
+                                          Spacing="0">
+                                    <MudIcon Icon="@SettingsService.GetCurrencyIconForCode(context.Item.CurrencyCode ?? homeCurrency)"
+                                             Size="Size.Small"/>
+                                    <MudText Typo="Typo.body1"
+                                             Color="@(context.Item.Category == "Income" ? Color.Secondary : Color.Warning)">
+                                        <b>
+                                            @AmountValue(context.Item.Price)
+                                            @if (ShowBracketCurrency(context.Item.CurrencyCode))
+                                            {
+                                                <span class="currency-code">(@CurrencyLabel(context.Item.CurrencyCode))</span>
+                                            }
+                                        </b>
+                                    </MudText>
+                                </MudStack>
+                                <MudText Typo="Typo.caption"
+                                         Class="font-italic">
                                     @Constants.AutoPay.Frequencies.GetValueOrDefault(context.Item.Frequency ?? "", "—")
                                 </MudText>
                             </MudStack>
                         </MudStack>
 
-                        <MudDivider Class="my-1" Style="opacity: 0.2;" />
+                        <MudDivider Class="my-1"
+                                    Style="opacity: 0.2;"/>
 
-                        <MudStack Row="true" Spacing="1" Justify="Justify.FlexEnd">
+                        <MudStack Row="true"
+                                  Spacing="1"
+                                  Justify="Justify.FlexEnd">
                             <MudIconButton Icon="@(context.Item.AutoPay == 1 ? Icons.Material.Filled.CheckCircle : Icons.Material.Filled.RadioButtonUnchecked)"
                                            Color="@(context.Item.AutoPay == 1 ? Color.Success : Color.Default)"
                                            Size="Size.Small"
-                                           OnClick="@(() => OnToggle(context.Item))" />
+                                           OnClick="@(() => OnToggle(context.Item))"/>
 
                             <MudIconButton Icon="@Icons.Material.Filled.Edit"
                                            Color="Color.Info"
                                            Size="Size.Small"
-                                           OnClick="@(() => OpenEditDialogAsync(context.Item))" />
+                                           OnClick="@(() => OpenEditDialogAsync(context.Item))"/>
                         </MudStack>
                     </CellTemplate>
                 </TemplateColumn>
             </Columns>
             <PagerContent>
-                <MudDivider />
+                <MudDivider/>
 
-                <MudStack Row AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="pa-2">
-                    <MudText Typo="Typo.subtitle2" Class="ml-2">
-                        Total Outgoings: <span style="color:var(--mud-palette-success)">@autoPayments?.Where(x => x.Category != "Income").Sum(x => x.Price).ToString("C")</span>
+                <MudStack Row
+                          AlignItems="AlignItems.Center"
+                          Justify="Justify.SpaceBetween"
+                          Class="pa-2">
+                    <MudText Typo="Typo.subtitle2"
+                             Class="ml-2">
+                        Total Outgoings:
+                        <MudStack Spacing="0"
+                                  AlignItems="AlignItems.End">
+                            @foreach (var total in OutgoingTotals)
+                            {
+                                <MudStack Row="true"
+                                          AlignItems="AlignItems.Center"
+                                          Spacing="0"
+                                          Style="color:var(--mud-palette-success)">
+                                    <MudIcon Icon="@SettingsService.GetCurrencyIconForCode(total.CurrencyCode)"
+                                             Size="Size.Small"/>
+                                    <span>
+                                        @AmountValue(total.Amount)
+                                        @if (ShowBracketCurrency(total.CurrencyCode))
+                                        {
+                                            <span class="currency-code">(@CurrencyLabel(total.CurrencyCode))</span>
+                                        }
+                                    </span>
+                                </MudStack>
+                            }
+                        </MudStack>
                     </MudText>
-                    <MudPagination Count="@pageCount" SelectedChanged="OnPageChanged" Size="Size.Small" />
+                    <MudPagination Count="@pageCount"
+                                   SelectedChanged="OnPageChanged"
+                                   Size="Size.Small"/>
                 </MudStack>
             </PagerContent>
 
@@ -101,33 +180,70 @@
     }
     else
     {
-        <MudGrid Spacing="2" Justify="Justify.Center">
-            <MudItem xs="12" sm="12" md="5">
-                <MudDataGrid T="ExpenseTracker" Items="@currentMonthPayments" SortMode="SortMode.None" RowsPerPage="@(currentMonthPayments!.Count())" Breakpoint="Breakpoint.None"
-                             Dense="true" Hover="true" Bordered="true" Striped="true" Filterable="false" ShowColumnOptions="false" ShowFilterIcons="false" ShowMenuIcon="false">
+        <MudGrid Spacing="2"
+                 Justify="Justify.Center">
+            <MudItem xs="12"
+                     sm="12"
+                     md="5">
+                <MudDataGrid T="ExpenseTracker"
+                             Items="@currentMonthPayments"
+                             SortMode="SortMode.None"
+                             RowsPerPage="@(currentMonthPayments!.Count())"
+                             Breakpoint="Breakpoint.None"
+                             Dense="true"
+                             Hover="true"
+                             Bordered="true"
+                             Striped="true"
+                             Filterable="false"
+                             ShowColumnOptions="false"
+                             ShowFilterIcons="false"
+                             ShowMenuIcon="false">
                     <Columns>
                         <TemplateColumn>
                             <CellTemplate>
-                                <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="py-1">
+                                <MudStack Row="true"
+                                          Justify="Justify.SpaceBetween"
+                                          AlignItems="AlignItems.Center"
+                                          Class="py-1">
                                     <MudStack Spacing="0">
-                                        <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                        <MudText Typo="Typo.caption"
+                                                 Color="Color.Secondary">
                                             @(context.Item.AutoPayDate?.ToString("ddd, MMM dd"))
                                         </MudText>
                                         <MudText Typo="Typo.body2"><b>@context.Item.Detail</b></MudText>
                                     </MudStack>
 
-                                    <MudText Typo="Typo.body2" Color="@(context.Item.Category == "Income" ? Color.Secondary : Color.Warning)">
-                                        <b>@context.Item.Price.ToString("C", new System.Globalization.CultureInfo(culture))</b>
-                                    </MudText>
+                                    <MudStack Row="true"
+                                              AlignItems="AlignItems.Center"
+                                              Spacing="0">
+                                        <MudIcon Icon="@SettingsService.GetCurrencyIconForCode(context.Item.CurrencyCode ?? homeCurrency)"
+                                                 Size="Size.Small"/>
+                                        <MudText Typo="Typo.body2"
+                                                 Color="@(context.Item.Category == "Income" ? Color.Secondary : Color.Warning)">
+                                            <b>
+                                                @AmountValue(context.Item.Price)
+                                                @if (ShowBracketCurrency(context.Item.CurrencyCode))
+                                                {
+                                                    <span class="currency-code">(@CurrencyLabel(context.Item.CurrencyCode))</span>
+                                                }
+                                            </b>
+                                        </MudText>
+                                    </MudStack>
                                 </MudStack>
                             </CellTemplate>
                         </TemplateColumn>
                     </Columns>
 
                     <NoRecordsContent>
-                        <MudStack AlignItems="AlignItems.Center" Class="pa-8">
-                            <MudIcon Icon="@Icons.Material.Filled.EventBusy" Size="Size.Large" Color="Color.Default" Style="opacity:0.5;" />
-                            <MudText Typo="Typo.body2" Align="Align.Center">No upcoming payments found for this period.</MudText>
+                        <MudStack AlignItems="AlignItems.Center"
+                                  Class="pa-8">
+                            <MudIcon Icon="@Icons.Material.Filled.EventBusy"
+                                     Size="Size.Large"
+                                     Color="Color.Default"
+                                     Style="opacity:0.5;"/>
+                            <MudText Typo="Typo.body2"
+                                     Align="Align.Center">No upcoming payments found for this period.
+                            </MudText>
                         </MudStack>
                     </NoRecordsContent>
                 </MudDataGrid>
@@ -135,21 +251,51 @@
         </MudGrid>
     }
 }
+
 @code {
 
-    private bool showAll = false, isVisible = false;
-    private int pageCount = 0, pageSize = 10;
-    private string culture = "";
+    private bool showAll, isVisible;
+    private int pageCount;
+    private readonly int pageSize = 10;
+    private string culture = "", homeCurrency = "CAD";
     private IEnumerable<ExpenseTracker>? autoPayments, currentMonthPayments = Enumerable.Empty<ExpenseTracker>();
     private IEnumerable<ExpenseTracker>? currentPageItems;
+
+    private IEnumerable<CurrencyTotal> OutgoingTotals =>
+        (autoPayments ?? Enumerable.Empty<ExpenseTracker>())
+        .Where(x => x.Category != "Income")
+        .GroupBy(x => string.IsNullOrWhiteSpace(x.CurrencyCode) ? homeCurrency : x.CurrencyCode.Trim().ToUpperInvariant())
+        .Select(g => new CurrencyTotal(g.Key, Math.Round(g.Sum(x => x.Price), 2)));
+
+    private sealed record CurrencyTotal(string CurrencyCode, decimal Amount);
+
+    private string AmountValue(decimal amount)
+    {
+        return amount.ToString("N2", CultureInfo.InvariantCulture);
+    }
+
+    private string CurrencyLabel(string? currencyCode)
+    {
+        return string.IsNullOrWhiteSpace(currencyCode)
+            ? homeCurrency
+            : currencyCode.Trim().ToUpperInvariant();
+    }
+
+    private bool ShowBracketCurrency(string? currencyCode)
+    {
+        var currency = CurrencyLabel(currencyCode);
+        return currency != homeCurrency &&
+               SettingsService.GetCurrencyIconForCode(currency) == Icons.Material.Filled.AttachMoney;
+    }
 
     protected override async Task OnInitializedAsync()
     {
         try
         {
-            List<Setting> Settings = await SettingsService.GetSettingsAsync();
-            string country = Settings.Where(x => x.SettingKey == "country").FirstOrDefault()?.SettingValue!;
+            var Settings = await SettingsService.GetSettingsAsync();
+            var country = Settings.Where(x => x.SettingKey == "country").FirstOrDefault()?.SettingValue!;
             culture = SettingsService.GetCultureCode(country);
+            homeCurrency = await SettingsService.GetHomeCurrencyCodeAsync();
 
             await LoadPayments();
 
@@ -161,7 +307,7 @@
         }
         catch (Exception ex)
         {
-            LoggerService.Log($"OnInitializedAsync - {this.GetType().FullName}", ex);
+            LoggerService.Log($"OnInitializedAsync - {GetType().FullName}", ex);
             Snackbar.Add(Constants.OnLoadErrorMessage, Severity.Error);
         }
     }
@@ -186,7 +332,7 @@
         currentMonthPayments = autoPayments
             .Where(e => e.AutoPay.HasValue && e.AutoPay == 1 && ((e.AutoPayDate >= start && e.AutoPayDate <= end) || e.AutoPayDate <= today))
             .ToList();
-            
+
         isVisible = autoPayments.Count() > 0;
     }
 
@@ -195,17 +341,19 @@
         try
         {
             obj.AutoPay = obj.AutoPay == 1 ? 0 : obj.AutoPay == 0 ? 1 : null;
-            int n = await ExpenseTrackerService.UpdateAutoPaymentsAsync(obj);
+            var n = await ExpenseTrackerService.UpdateAutoPaymentsAsync(obj);
             await LoadPayments();
         }
-        catch { }
+        catch
+        {
+        }
     }
 
     private async Task OpenEditDialogAsync(ExpenseTracker expense)
     {
         var parameters = new DialogParameters<Edit> { { x => x.Expense, expense }, { x => x.OnSaved, RefreshGrid } };
 
-        var options = new DialogOptions()
+        var options = new DialogOptions
         {
             CloseButton = true,
             MaxWidth = MaxWidth.Medium,

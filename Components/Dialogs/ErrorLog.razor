@@ -1,0 +1,35 @@
+﻿<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">@Title</MudText>
+    </TitleContent>
+
+    <DialogContent>
+        <MudTextField Value="@Content"
+                      Variant="Variant.Outlined"
+                      Lines="20"
+                      ReadOnly="true"
+                      FullWidth="true"
+                      Style="font-family: monospace; font-size: 0.9rem;"/>
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton OnClick="CopyToClipboard"
+                   Color="Color.Primary">Copy All
+        </MudButton>
+        <MudButton OnClick="() => MudDialog.Close()">Close</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public string Title { get; set; } = "";
+    [Parameter] public string Content { get; set; } = "";
+    [Parameter] public bool CopyButton { get; set; } = true;
+
+    private async Task CopyToClipboard()
+    {
+        await Clipboard.SetTextAsync(Content);
+        Snackbar.Add("Copied to clipboard", Severity.Success);
+    }
+
+}

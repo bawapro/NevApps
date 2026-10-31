@@ -1,0 +1,247 @@
+﻿@using NevApps.Components.Dialogs
+<MudStack Row
+          Spacing="2">
+    @if (isBugFound)
+    {
+        <MudButton OnClick="SendIssueLogs"
+                   Variant="Variant.Outlined"
+                   Color="Color.Error"
+                   Size="Size.Small"
+                   IconSize="Size.Small"
+                   StartIcon="@Icons.Material.Filled.Report"
+                   Disabled="isSending">
+            @if (isSending)
+            {
+                <MudProgressCircular Indeterminate="true"
+                                     Color="Color.Primary"
+                                     Size="Size.Small"/>
+            }
+            else
+            {
+                <MudText>@issueLabel</MudText>
+            }
+        </MudButton>
+    }
+
+    <MudButton OnClick="OpenDialog"
+               Variant="Variant.Outlined"
+               Color="Color.Warning"
+               Size="Size.Small"
+               IconSize="Size.Small"
+               StartIcon="@Icons.Material.Filled.SendToMobile">
+        <MudText>@feedbackLabel</MudText>
+    </MudButton>
+
+</MudStack>
+
+@code {
+
+    [Parameter] public bool isBugFound { get; set; }
+    [Parameter] public EventCallback<bool> BugFound { get; set; }
+    [Parameter] public EventCallback<bool> FeedbackReceived { get; set; }
+    [Parameter] public EventCallback<bool> ReplyReceived { get; set; }
+
+    private bool isReply, isFeedback, isSending, _refreshing;
+    string? logFilePath;
+    string feedbackLabel = "Post Feedback";
+    readonly string issueLabel = "Report Error";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            logFilePath = LoggerService.GetLogFilePath();
+
+            if (File.Exists(logFilePath))
+            {
+                isBugFound = true;
+                await BugFound.InvokeAsync(isBugFound);
+            }
+
+        }
+        catch (Exception ex)
+        {
+            LoggerService.Log($"OnInitializedAsync - {GetType().FullName}", ex);
+            Snackbar.Add(Constants.OnLoadErrorMessage, Severity.Error);
+        }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await RefreshSupportAsync();
+    }
+
+    private async Task RefreshSupportAsync()
+    {
+        if (_refreshing)
+            return;
+
+        _refreshing = true;
+        try
+        {
+            var label = "Post Feedback";
+            var feedback = false;
+            var reply = false;
+
+            if (await SettingsService.IsFeedbackGiven())
+            {
+                var devReply = await SettingsService.GetDevFeedbackAsync();
+                var hasReply = !string.IsNullOrWhiteSpace(devReply?.SettingValue);
+                feedback = await SettingsService.IsDevFeedbackGiven();
+                label = hasReply ? "View Feedback" : "Your Feedback";
+            }
+
+            if (await SettingsService.IsIssueReported())
+            {
+                reply = await SettingsService.IsDevIssueReplied();
+                if (reply)
+                    label = "View Reply";
+            }
+
+            var changed = feedback != isFeedback || reply != isReply || label != feedbackLabel;
+            isFeedback = feedback;
+            isReply = reply;
+            feedbackLabel = label;
+
+            if (!changed)
+                return;
+
+            await FeedbackReceived.InvokeAsync(isFeedback);
+            await ReplyReceived.InvokeAsync(isReply);
+            StateService.NotifySupportNoticesChanged();
+        }
+        catch (Exception ex)
+        {
+            LoggerService.Log($"RefreshSupportAsync - {GetType().FullName}", ex);
+        }
+        finally
+        {
+            _refreshing = false;
+        }
+    }
+
+    private async Task SendIssueLogs()
+    {
+        isSending = true;
+        var confirm = await DialogService.ShowMessageBoxAsync("Send Error Logs", (MarkupString)"An unexpected error occurred.<br/><br/>Sending the log file helps diagnose and fix it faster.<br/><br/>The log contains technical details only which you can view after sending. Continue?", "Yes", cancelText: "Cancel");
+
+        if (confirm != true) return;
+
+        try
+        {
+            var userId = await SettingsService.GetUserIdAsync() + $"_{DateTime.Now:yyyyMMddHHmmss}";
+            var originalLogContent = await File.ReadAllTextAsync(logFilePath!);
+            var developerLogs = originalLogContent
+                .Split(new[] { "--------------------------------------------------" }, StringSplitOptions.RemoveEmptyEntries)
+                .Where(block => block.Contains("[DEVELOPER]"))
+                .Select(block => block.Replace("[DEVELOPER] ", "").Trim())
+                .Reverse()
+                .GroupBy(block => block.Split('\n').FirstOrDefault() ?? block)
+                .Select(group => group.First())
+                .Select(block => block + "\n--------------------------------------------------");
+
+            var debugLogs = string.Join(Environment.NewLine, developerLogs);
+            var metadataLines = new[]
+            {
+                "============== DEVICE & APP INFO==============",
+                $"UserId:       {userId}",
+                $"AppVersion:   {AppInfo.VersionString ?? "unknown"}",
+                $"Platform:     {DeviceInfo.Platform}",
+                $"OS Version:   {DeviceInfo.VersionString ?? "unknown"}",
+                $"Manufacturer: {DeviceInfo.Manufacturer ?? "unknown"}",
+                $"Model:        {DeviceInfo.Model ?? "unknown"}",
+                $"Idiom:        {DeviceInfo.Idiom}",
+                $"Density:      {DeviceDisplay.MainDisplayInfo.Density:F2}",
+                $"Screen:       {DeviceDisplay.MainDisplayInfo.Width} × {DeviceDisplay.MainDisplayInfo.Height}",
+                $"Timestamp:    {DateTime.UtcNow:o}",
+                "==============================================",
+                "",
+                debugLogs
+            };
+
+            var fullLogWithMetadata = string.Join(Environment.NewLine, metadataLines);
+            var response = await NevAPIService.SendIssueLogAsync(fullLogWithMetadata, userId);
+
+            if (response.IsSuccessStatusCode)
+            {
+                await SettingsService.SaveIssueAsync(userId, originalLogContent);
+
+                Snackbar.Add("Logs sent successfully.", Severity.Success, config =>
+                {
+                    config.Action = "VIEW LOGS";
+                    config.ActionColor = Color.Info;
+                    config.OnClick = async snackbar => { await ShowLogsDialog(); };
+                });
+
+                isBugFound = false;
+            }
+            else
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                Snackbar.Add($"Upload failed ({response.StatusCode}): {error}", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add("Upload failed", Severity.Error);
+            LoggerService.Log("SendIssueLog failed", ex);
+        }
+
+        isSending = false;
+    }
+
+    private async Task OpenDialog()
+    {
+        var options = new DialogOptions
+        {
+            CloseButton = true,
+            MaxWidth = MaxWidth.Medium,
+            FullWidth = true,
+            BackdropClick = false
+        };
+
+        // "Your Feedback" is the submitted-but-not-yet-refreshed state. It still has to open.
+        if (isFeedback || feedbackLabel is "Post Feedback" or "Your Feedback" or "View Feedback")
+        {
+            var parameters = new DialogParameters<Feedback> { { x => x.isView, isFeedback }, { x => x.Title, "Feedback" } };
+            var dialog = await DialogService.ShowAsync<Feedback>(feedbackLabel, parameters, options);
+            await dialog.Result;
+        }
+
+        if (isReply)
+        {
+            var parameters = new DialogParameters<Issue> { { x => x.Title, "Error Report" } };
+            var dialog = await DialogService.ShowAsync<Issue>(feedbackLabel, parameters, options);
+            await dialog.Result;
+        }
+
+        await RefreshSupportAsync();
+    }
+
+    private async Task ShowLogsDialog()
+    {
+        var userLogs = File.ReadAllLines(logFilePath!)
+            .Where(line => line.StartsWith("[USER]"))
+            .Select(line => line.Replace("[USER] ", ""))
+            .Reverse()
+            .GroupBy(line => line.Substring(line.IndexOf("]") + 1).Trim())
+            .Select(group => group.First())
+            .Take(10);
+        var content = string.Join(Environment.NewLine, userLogs);
+        var options = new DialogOptions
+        {
+            CloseButton = true,
+            MaxWidth = MaxWidth.Medium,
+            FullWidth = true,
+            BackdropClick = false
+        };
+        var parameters = new DialogParameters<ErrorLog>
+        {
+            { x => x.Title, "Error Log" },
+            { x => x.Content, content }
+        };
+
+        await DialogService.ShowAsync<ErrorLog>("Error Log", parameters, options);
+    }
+
+}

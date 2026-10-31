@@ -1,62 +1,96 @@
-﻿@inherits LayoutComponentBase
+@inherits LayoutComponentBase
 @implements IDisposable
 
 <MudThemeProvider @ref="_themeProvider"
+                  Theme="_theme"
                   @bind-IsDarkMode="_isDarkMode"
-                  ObserveSystemDarkModeChange="_observeSystem" />
-<MudDialogProvider />
-<MudSnackbarProvider />
-<MudPopoverProvider />
+                  ObserveSystemDarkModeChange="_observeSystem"/>
+<MudDialogProvider/>
+<MudSnackbarProvider/>
+<MudPopoverProvider/>
 
 <MudLayout Class="@LayoutCss">
-    <MudAppBar Color="Color.Primary" Elevation="1" Dense="@IsNavCompact" Class="@AppBarCssClass">
-        <MudImage Src="images/logo-t.png" Height="@(IsNavCompact ? 22 : 25)" Width="@(IsNavCompact ? 22 : 25)" Class="mr-1" />
-        <MudText Typo="Typo.h6" Class="app-brand-title">NevApps</MudText>
-        <MudSpacer />
+    <MudAppBar Color="Color.Primary"
+               Elevation="1"
+               Dense="@IsNavCompact"
+               Class="@AppBarCssClass">
+        @if (!IsShellRoute)
+        {
+            <div role="button"
+                 class="d-flex align-center justify-center"
+                 style="min-width:44px;min-height:44px;cursor:pointer;"
+                 @onclick="GoBackDetail"
+                 @onclick:stopPropagation="true">
+                <MudIcon Icon="@Icons.Material.Filled.ArrowBack"
+                         Size="Size.Small"/>
+            </div>
+        }
+        <MudImage Src="images/logo-t.png"
+                  Height="@(IsNavCompact ? 22 : 25)"
+                  Width="@(IsNavCompact ? 22 : 25)"
+                  Class="mr-1"/>
+        <MudText Typo="Typo.h6"
+                 Class="app-brand-title">NevApps
+        </MudText>
+        <MudSpacer/>
         <div class="app-nav-icons">
-            @if ((isExpenseTrackerOn || isMileageTrackerOn || isShenshaiOn))
+            @if (isExpenseTrackerOn || isMileageTrackerOn || isShenshaiOn)
             {
                 <MudIconButton Icon="@Icons.Material.Filled.Home"
                                Size="Size.Small"
-                               Color="@GetIconColor(AppNav.Home)"
-                               OnClick="@(() => NavigateTo(AppNav.Home))" />
+                               Color="@GetIconColor("/")"
+                               OnClick="@(() => NavigateTo("/"))"/>
             }
 
             @if (isExpenseTrackerOn)
             {
                 <MudIconButton Icon="@currencyIcon"
                                Size="Size.Small"
-                               Color="@GetIconColor(AppNav.Expense)"
-                               OnClick="@(() => NavigateTo(AppNav.Expense))" />
+                               Color="@GetIconColor("/expense-tracker/add")"
+                               OnClick="@(() => NavigateTo("/expense-tracker/add"))"/>
             }
 
             @if (isMileageTrackerOn)
             {
                 <MudIconButton Icon="@Icons.Material.Rounded.DirectionsCarFilled"
                                Size="Size.Small"
-                               Color="@GetIconColor(AppNav.Mileage)"
-                               OnClick="@(() => NavigateTo(AppNav.Mileage))" />
+                               Color="@GetIconColor("/mileage-tracker/add")"
+                               OnClick="@(() => NavigateTo("/mileage-tracker/add"))"/>
             }
 
             @if (isShenshaiOn)
             {
                 <MudIconButton Icon="@Icons.Material.Filled.CalendarMonth"
                                Size="Size.Small"
-                               Color="@GetIconColor(AppNav.Shenshai)"
-                               OnClick="@(() => NavigateTo(AppNav.Shenshai))" />
+                               Color="@GetIconColor("/shenshai/view")"
+                               OnClick="@(() => NavigateTo("/shenshai/view"))"/>
             }
 
             @if (isStepsTrackerOn)
             {
                 <MudIconButton Icon="@Icons.Material.Filled.DirectionsWalk"
                                Size="Size.Small"
-                               Color="@GetIconColor(AppNav.Steps)"
-                               OnClick="@(() => NavigateTo(AppNav.Steps))" />
+                               Color="@GetIconColor("/steps-tracker/add")"
+                               OnClick="@(() => NavigateTo("/steps-tracker/add"))"/>
             }
-            <MudIconButton Icon="@Icons.Material.Filled.Settings"
-                           Size="Size.Small"
-                           Color="@GetIconColor(AppNav.Settings)"
-                           OnClick="@(() => NavigateTo(AppNav.Settings))" />
+            <MudBadge Icon="@Icons.Material.Filled.ReportGmailerrorred"
+                      Color="Color.Error"
+                      Overlap="true"
+                      Bordered="true"
+                      Visible="@(showFeedbackBadge ? showFeedbackBadge : showIssueBadge ? showIssueBadge : showBadge)">
+                <MudIconButton Icon="@Icons.Material.Filled.Settings"
+                               Size="Size.Small"
+                               Color="@GetIconColor("/view-settings")"
+                               OnClick="@(() => NavigateTo("/view-settings"))"/>
+            </MudBadge>
+
+            @if (Constants.IsAdmin && showSupportNavigation)
+            {
+                <MudIconButton Icon="@Icons.Material.Filled.ContactSupport"
+                               Size="Size.Small"
+                               Color="@GetIconColor("/view-support")"
+                               OnClick="@(() => NavigateTo("/view-support"))"/>
+            }
         </div>
     </MudAppBar>
     <MudMainContent Class="@MainContentCss">
@@ -64,28 +98,63 @@
                       ExpenseEnabled="isExpenseTrackerOn"
                       MileageEnabled="isMileageTrackerOn"
                       ShenshaiEnabled="isShenshaiOn"
-                      StepsEnabled="isStepsTrackerOn" />
+                      StepsEnabled="isStepsTrackerOn"
+                      AdminEnabled="@(Constants.IsAdmin && showSupportNavigation)"/>
         @if (!IsShellRoute)
         {
-            @Body
+            <div style="padding-bottom: calc(48px + var(--app-bottom-inset, 0px));">
+                @Body
+            </div>
+            <div style="position: fixed; left: 0; right: 0; bottom: 0; z-index: 12;
+                        display: flex; justify-content: center; align-items: center;
+                        padding: 2px 16px calc(2px + var(--app-bottom-inset, 0px));
+                        background: var(--mud-palette-appbar-background, var(--mud-palette-primary));
+                        color: var(--mud-palette-appbar-text, #fff);
+                        box-shadow: 0 -2px 8px rgba(0,0,0,0.12);">
+                <div role="button"
+                     class="d-flex align-center justify-center"
+                     style="min-width:96px;min-height:36px;cursor:pointer;gap:4px;"
+                     @onclick="GoBackDetail"
+                     @onclick:stopPropagation="true">
+                    <MudIcon Icon="@Icons.Material.Filled.ArrowBack"
+                             Size="Size.Small"/>
+                    <MudText Typo="Typo.caption">Back</MudText>
+                </div>
+            </div>
         }
     </MudMainContent>
 </MudLayout>
 
 @code {
+    private static readonly MudTheme _theme = new()
+    {
+        Typography = new Typography
+        {
+            Default = new DefaultTypography
+            {
+                FontFamily = ["Helvetica Neue", "Helvetica", "Arial", "sans-serif"]
+            }
+        }
+    };
+
     private MudThemeProvider? _themeProvider;
     private SectionShell? _shell;
+    private CancellationTokenSource? _remoteCts;
     private bool _isDarkMode;
     private bool _observeSystem = true;
-    private bool isExpenseTrackerOn = false, isMileageTrackerOn = false, isShenshaiOn = false, isStepsTrackerOn = false;
+    private readonly bool showBadge = false;
+    private bool showFeedbackBadge, showIssueBadge, showSupportNavigation, isExpenseTrackerOn, isMileageTrackerOn, isShenshaiOn, isStepsTrackerOn;
     private string? currencyIcon;
 
     private bool IsNavCompact => VisibleNavIconCount >= 6;
     private string AppBarCssClass => IsNavCompact ? "app-topbar app-topbar-compact" : "app-topbar";
+
     private bool IsShellRoute =>
         NavSections.IsShellRoute(NavigationManager.ToBaseRelativePath(NavigationManager.Uri));
+
     private string LayoutCss =>
         (_isDarkMode ? "app-dark " : string.Empty) + (IsShellRoute ? "app-shell-layout" : "app-detail-layout");
+
     private string MainContentCss => IsShellRoute ? "app-main-shell" : "app-main-detail";
 
     private int VisibleNavIconCount
@@ -103,6 +172,8 @@
                 count++;
             if (isStepsTrackerOn)
                 count++;
+            if (Constants.IsAdmin && showSupportNavigation)
+                count++;
             return count;
         }
     }
@@ -111,6 +182,8 @@
     {
         ApplyThemeFromState();
         StateService.ThemeChanged += OnThemePreferenceChanged;
+        StateService.SupportNoticesChanged += OnSupportNoticesChanged;
+        StateService.AdminSupportChanged += OnAdminSupportChanged;
         NavigationManager.LocationChanged += OnLocationChanged;
     }
 
@@ -138,39 +211,159 @@
             (isExpenseTrackerOn, isMileageTrackerOn, isShenshaiOn, isStepsTrackerOn) = await SettingsService.GetFeaturesAsync();
 
             if (!isExpenseTrackerOn && !isMileageTrackerOn && isStepsTrackerOn && !isShenshaiOn)
-            {
-                NavigationManager.NavigateTo(AppNav.Steps);
+                NavigationManager.NavigateTo("/steps-tracker/add");
+            else if (!isExpenseTrackerOn && !isMileageTrackerOn && isStepsTrackerOn && isShenshaiOn)
+                NavigationManager.NavigateTo("/shenshai/view");
+        }
+        catch (Exception ex)
+        {
+            LoggerService.Log($"OnInitializedAsync - {GetType().FullName}", ex);
+            Snackbar.Add(Constants.OnLoadErrorMessage, Severity.Error);
+        }
+
+        _remoteCts = new CancellationTokenSource();
+        _ = LoadRemoteStartupAsync(_remoteCts.Token);
+    }
+
+    private async Task LoadRemoteStartupAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var isNevAPIOn = await NevAPIService.IsNevAPIAvailableAsync();
+            if (!isNevAPIOn || cancellationToken.IsCancellationRequested)
                 return;
+
+            if (Constants.IsAdmin)
+            {
+                var feedbackResponse = await NevAPIService.LoadFeedbacksAsync();
+                var issueResponse = await NevAPIService.LoadIssuesAsync();
+                var hasEntries = feedbackResponse.Items.Count > 0 || issueResponse.Items.Count > 0;
+                showSupportNavigation = hasEntries;
+                StateService.SetAdminSupportHasEntries(hasEntries);
             }
 
-            if (!isExpenseTrackerOn && !isMileageTrackerOn && isStepsTrackerOn && isShenshaiOn)
+            var Settings = await SettingsService.GetSettingsAsync();
+            var response = await NevAPIService.GetBroadcastsAsync();
+
+            if (response.Count > 0)
             {
-                NavigationManager.NavigateTo(AppNav.Shenshai);
-                return;
+                var announcements = response.Items
+                        .SelectMany(innerList => innerList)
+                        .OrderByDescending(a => a.ContainsKey("Id"))
+                        .Where(a => a.ContainsKey("Status"))
+                        .ToList();
+
+                var announcementIds = Settings
+                    .Where(s => s.SettingKey == "announcement")
+                    .Select(s => s.SettingValue)
+                    .ToHashSet();
+
+                foreach (var announcement in announcements)
+                {
+                    if (!announcement.TryGetValue("Id", out var idObj))
+                        continue;
+
+                    var idValue = idObj?.ToString();
+                    if (string.IsNullOrEmpty(idValue) || !announcementIds.Add(idValue))
+                        continue;
+
+                    await SettingsService.SeenAnnouncementAsync(idValue, false);
+                }
+            }
+
+            if (await SettingsService.IsFeedbackGiven())
+            {
+                await GetDevFeedback();
+                showFeedbackBadge = await SettingsService.ShowBadge("dev_feedback");
+                showFeedbackBadge = Constants.IsAdmin ? false : showFeedbackBadge;
+            }
+
+            if (await SettingsService.IsIssueReported())
+            {
+                if (File.Exists(LoggerService.GetLogFilePath()))
+                    File.Delete(LoggerService.GetLogFilePath());
+
+                await GetDevReply();
+                showIssueBadge = await SettingsService.ShowBadge("dev_issuereply");
+                showIssueBadge = Constants.IsAdmin ? false : showIssueBadge;
+            }
+
+            if (!cancellationToken.IsCancellationRequested)
+                await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            LoggerService.Log($"LoadRemoteStartupAsync - {GetType().FullName}", ex);
+        }
+    }
+
+    private Color GetIconColor(string path)
+    {
+        return NavigationManager.Uri.EndsWith(path, StringComparison.OrdinalIgnoreCase)
+            ? Color.Warning
+            : Color.Inherit;
+    }
+
+    private async Task GetDevFeedback()
+    {
+        try
+        {
+            var userId = await SettingsService.GetFeedbackUserIdAsync();
+            var response = await NevAPIService.GetDevFeedbackAsync(userId);
+            var feedbacks = response?.Items ?? new List<Dictionary<string, object>>();
+
+            if (feedbacks.Count > 0)
+            {
+                await SettingsService.SaveDevFeedbackAsync(feedbacks[0]["message"]?.ToString() ?? string.Empty);
             }
         }
         catch (Exception ex)
         {
-            LoggerService.Log($"OnInitializedAsync - {this.GetType().FullName}", ex);
-            Snackbar.Add(Constants.OnLoadErrorMessage, Severity.Error);
+            Snackbar.Add($"Failed to load: {ex.Message}", Severity.Error);
         }
     }
 
-    private void OnLocationChanged(object? sender, LocationChangedEventArgs e) =>
-        InvokeAsync(StateHasChanged);
-
-    private MudBlazor.Color GetIconColor(string path)
+    private async Task GetDevReply()
     {
-        var relative = NavigationManager.ToBaseRelativePath(NavigationManager.Uri);
-        return AppNav.IsActive(relative, path)
-            ? MudBlazor.Color.Warning
-            : MudBlazor.Color.Inherit;
+        try
+        {
+            var userId = await SettingsService.GetIssueUserIdAsync();
+            var response = await NevAPIService.GetDevReplyAsync(userId);
+            var replies = response?.Items ?? new List<Dictionary<string, object>>();
+
+            if (replies.Count > 0)
+            {
+                await SettingsService.SaveDevIssueReplyAsync(replies[0]["message"]?.ToString() ?? string.Empty);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Failed to load: {ex.Message}", Severity.Error);
+        }
     }
 
     private void NavigateTo(string path)
     {
         NavigationManager.NavigateTo(path);
         _shell?.Show(path);
+    }
+
+    private void GoBackDetail()
+    {
+        var path = "/" + NavigationManager.ToBaseRelativePath(NavigationManager.Uri);
+        string parent;
+        if (path.StartsWith("/expense-tracker", StringComparison.OrdinalIgnoreCase))
+            parent = NavSections.Expense;
+        else if (path.StartsWith("/mileage-tracker", StringComparison.OrdinalIgnoreCase))
+            parent = NavSections.Mileage;
+        else if (path.StartsWith("/reminders", StringComparison.OrdinalIgnoreCase) ||
+                 path.StartsWith("/sunrisesunset", StringComparison.OrdinalIgnoreCase) ||
+                 path.StartsWith("/shenshai", StringComparison.OrdinalIgnoreCase))
+            parent = NavSections.Shenshai;
+        else
+            parent = NavSections.Home;
+
+        NavigateTo(parent);
     }
 
     private void ApplyThemeFromState()
@@ -187,10 +380,40 @@
         await InvokeAsync(StateHasChanged);
     }
 
+    private void OnAdminSupportChanged()
+    {
+        showSupportNavigation = StateService.HasAdminSupportEntries;
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private async void OnSupportNoticesChanged()
+    {
+        try
+        {
+            showFeedbackBadge = !Constants.IsAdmin && await SettingsService.ShowBadge("dev_feedback");
+            showIssueBadge = !Constants.IsAdmin && await SettingsService.ShowBadge("dev_issuereply");
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            LoggerService.Log("OnSupportNoticesChanged", ex);
+        }
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        _ = InvokeAsync(StateHasChanged);
+    }
+
     public void Dispose()
     {
         StateService.ThemeChanged -= OnThemePreferenceChanged;
+        StateService.SupportNoticesChanged -= OnSupportNoticesChanged;
+        StateService.AdminSupportChanged -= OnAdminSupportChanged;
         NavigationManager.LocationChanged -= OnLocationChanged;
+        _remoteCts?.Cancel();
+        _remoteCts?.Dispose();
+        _remoteCts = null;
     }
 
 }

@@ -26,7 +26,7 @@
     </MudStack>
     <MudText Typo="Typo.caption"
              Style="font-style: italic; opacity: 0.85; letter-spacing: 0.3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;">
-        Review & manage your income/expense records
+        Review & manage your income-expense records
     </MudText>
 </MudContainer>
 
@@ -35,7 +35,6 @@
              Items="@expenses"
              Breakpoint="Breakpoint.None"
              ColumnResizeMode="ResizeMode.Column"
-             Dense="true"
              Hover="true"
              Bordered="true"
              Striped="true"
@@ -61,9 +60,9 @@
                       Immediate="false"
                       Clearable="true"
                       DebounceInterval="300"/>
-            <MudIconButton Icon="@Icons.Material.Filled.FilterList"
-                           Color="Color.Secondary"
-                           OnClick="@ToggleFilterPopover"/>
+        <MudIconButton Icon="@Icons.Material.Filled.FilterList"
+                       Color="Color.Secondary"
+                       OnClick="@ToggleFilterPopover"/>
 
         <MudPopover Open="@_showFilterPopover"
                     AnchorOrigin="Origin.BottomRight"
@@ -133,24 +132,23 @@
                                     PickerVariant="PickerVariant.Dialog"
                                     ShowToolbar="false"
                                     Clearable="true"
-                                    Dense="true"
                                     Margin="Margin.Dense"/>
-                <MudNumericField T="decimal?" 
+                <MudNumericField T="decimal?"
                                  Value="_price"
                                  ValueChanged="OnPriceFilterChanged"
-                                 Label="Amount" 
+                                 Label="Amount"
                                  DebounceInterval="300"
-                                 IconSize="Size.Small" 
-                                 Required="true" 
+                                 IconSize="Size.Small"
+                                 Required="true"
                                  Margin="Margin.Dense"
-                                 InputMode="@(InputMode.@decimal)" 
-                                 Format="N0" 
-                                 Culture="@CultureInfo.InvariantCulture" 
-                                 Min="0" 
-                                 Max="999999" 
+                                 InputMode="@(InputMode.@decimal)"
+                                 Format="N0"
+                                 Culture="@CultureInfo.InvariantCulture"
+                                 Min="0"
+                                 Max="999999"
                                  Placeholder="0"
-                                 Clearable="true" 
-                                 HideSpinButtons="true" />
+                                 Clearable="true"
+                                 HideSpinButtons="true"/>
 
                 <div class="d-flex justify-between align-center mt-2">
                     <MudButton Variant="Variant.Text"
@@ -232,10 +230,22 @@
                               Justify="Justify.SpaceBetween"
                               AlignItems="AlignItems.Center"
                               Class="mt-2">
-                        <MudText Typo="Typo.body1"
-                                 Color="@(context.Item.Category == "Income" ? Color.Secondary : Color.Success)">
-                            <b>@context.Item.Price.ToString("C", new System.Globalization.CultureInfo(culture))</b>
-                        </MudText>
+                        <MudStack Row="true"
+                                  AlignItems="AlignItems.Center"
+                                  Spacing="0">
+                            <MudIcon Icon="@SettingsService.GetCurrencyIconForCode(context.Item.CurrencyCode ?? homeCurrency)"
+                                     Size="Size.Small"/>
+                            <MudText Typo="Typo.body1"
+                                     Color="@(context.Item.Category == "Income" ? Color.Secondary : Color.Success)">
+                                <b>
+                                    @AmountValue(context.Item.Price)
+                                    @if (ShowBracketCurrency(context.Item.CurrencyCode))
+                                    {
+                                        <span class="currency-code">(@CurrencyLabel(context.Item.CurrencyCode))</span>
+                                    }
+                                </b>
+                            </MudText>
+                        </MudStack>
 
                         <div class="d-flex align-center">
                             <MudIconButton Icon="@Icons.Material.Filled.Edit"
@@ -346,23 +356,45 @@
 
 @if (!string.IsNullOrEmpty(errorMsg))
 {
-    <MudAlert Severity="Severity.Success" Class="mt-4">@errorMsg</MudAlert>
+    <MudAlert Severity="Severity.Success"
+              Class="mt-4">@errorMsg</MudAlert>
 }
 
 @code {
 
-    bool categorySetting = false;
-    private string errorMsg = "", searchText = "", culture = "";
+    bool categorySetting;
+    private readonly string errorMsg = "";
+    private string searchText = "", culture = "", homeCurrency = "CAD";
     private IEnumerable<ExpenseTracker>? expenses;
     private MudDataGrid<ExpenseTracker>? grid;
+
+    private string AmountValue(decimal amount)
+    {
+        return amount.ToString("N2", CultureInfo.InvariantCulture);
+    }
+
+    private string CurrencyLabel(string? currencyCode)
+    {
+        return string.IsNullOrWhiteSpace(currencyCode)
+            ? homeCurrency
+            : currencyCode.Trim().ToUpperInvariant();
+    }
+
+    private bool ShowBracketCurrency(string? currencyCode)
+    {
+        var currency = CurrencyLabel(currencyCode);
+        return currency != homeCurrency &&
+               SettingsService.GetCurrencyIconForCode(currency) == Icons.Material.Filled.AttachMoney;
+    }
 
     protected override async Task OnInitializedAsync()
     {
         try
         {
-            List<Setting> Settings = await SettingsService.GetSettingsAsync();
-            string country = Settings.Where(x => x.SettingKey == "country").FirstOrDefault()?.SettingValue!;
+            var Settings = await SettingsService.GetSettingsAsync();
+            var country = Settings.Where(x => x.SettingKey == "country").FirstOrDefault()?.SettingValue!;
             culture = SettingsService.GetCultureCode(country);
+            homeCurrency = await SettingsService.GetHomeCurrencyCodeAsync();
             var CategorySetting = Settings.Where(x => x.SettingKey == "category");
             if (!string.IsNullOrEmpty(CategorySetting.FirstOrDefault()!.SettingValue))
                 categorySetting = true;
@@ -371,7 +403,7 @@
         }
         catch (Exception ex)
         {
-            LoggerService.Log($"OnInitializedAsync - {this.GetType().FullName}", ex);
+            LoggerService.Log($"OnInitializedAsync - {GetType().FullName}", ex);
             Snackbar.Add(Constants.OnLoadErrorMessage, Severity.Error);
         }
     }
@@ -386,6 +418,7 @@
         if (grid != null)
         {
             await grid.SetRowsPerPageAsync(newSize);
+            // Optional: go back to first page after size change (common UX)
             grid.NavigateTo(Page.First);
             await InvokeAsync(StateHasChanged);
         }
@@ -395,7 +428,7 @@
     {
         var parameters = new DialogParameters<Edit> { { x => x.Expense, expense }, { x => x.OnSaved, RefreshGrid } };
 
-        var options = new DialogOptions()
+        var options = new DialogOptions
         {
             CloseButton = true,
             MaxWidth = MaxWidth.Medium,
@@ -414,13 +447,13 @@
 
     private async Task Delete(ExpenseTracker obj)
     {
-        bool? result = await DialogService.ShowMessageBoxAsync("Confirm Delete", "Are you sure you want to delete this expense? This action cannot be undone.", yesText: "Yes", cancelText: "Cancel");
+        var result = await DialogService.ShowMessageBoxAsync("Confirm Delete", "Are you sure you want to delete this expense? This action cannot be undone.", "Yes", cancelText: "Cancel");
 
         try
         {
             if (result == true) // User clicked "Yes"
             {
-                int n = await ExpenseTrackerService.DeleteExpenseAsync(obj.Id);
+                var n = await ExpenseTrackerService.DeleteExpenseAsync(obj.Id);
 
                 if (n > 0)
                     Snackbar.Add("Entry deleted successfully!", Severity.Success);
@@ -430,12 +463,12 @@
         }
         catch (Exception ex)
         {
-            await DialogService.ShowMessageBoxAsync("Error", ex.Message, "OK");
+            await DialogService.ShowMessageBoxAsync("Error", ex.Message);
         }
     }
 
     //Filter Logic
-    private bool _showFilterPopover = false;
+    private bool _showFilterPopover;
     private decimal? _price;
     private List<string> _dbCategories = new();
     private List<string> _dbTypes = new();
@@ -443,13 +476,13 @@
     private IReadOnlyCollection<string> _selectedCategories = new HashSet<string>();
     private IReadOnlyCollection<string>? _selectedTypes = new HashSet<string>();
     private IReadOnlyCollection<string>? _selectedPlaces = new HashSet<string>();
-    private DateRange _selectedDateRange = new DateRange(null, null);
+    private DateRange _selectedDateRange = new(null, null);
 
     private int ActiveFilterCount =>
         (_selectedCategories != null && _selectedCategories.Any() ? 1 : 0) +
         (_selectedTypes != null && _selectedTypes.Any() ? 1 : 0) +
         (_selectedPlaces != null && _selectedPlaces.Any() ? 1 : 0) +
-        (_price != null  ? 1 : 0) +
+        (_price != null ? 1 : 0) +
         (_selectedDateRange?.Start != null ? 1 : 0);
 
     private void ToggleFilterPopover()
@@ -462,13 +495,13 @@
         if (!string.IsNullOrWhiteSpace(searchText))
         {
             var term = searchText.Trim().ToLowerInvariant();
-            bool matchesText = (e.Category?.ToLowerInvariant().Contains(term) ?? false) ||
-                               (e.Type?.ToLowerInvariant().Contains(term) ?? false) ||
-                               (e.Place?.ToLowerInvariant().Contains(term) ?? false) ||
-                               (e.Detail?.ToLowerInvariant().Contains(term) ?? false);
+            var matchesText = (e.Category?.ToLowerInvariant().Contains(term) ?? false) ||
+                              (e.Type?.ToLowerInvariant().Contains(term) ?? false) ||
+                              (e.Place?.ToLowerInvariant().Contains(term) ?? false) ||
+                              (e.Detail?.ToLowerInvariant().Contains(term) ?? false);
 
-            bool matchesPrice = e.Price.ToString().Contains(term);
-            
+            var matchesPrice = e.Price.ToString().Contains(term);
+
             if (!matchesText && !matchesPrice) return false;
         }
 
@@ -492,16 +525,16 @@
             if (e.Date < startDate || e.Date > endDate)
                 return false; // The expense falls outside your chosen DateOnly window
         }
-        
+
         if (_price.HasValue)
         {
-            string filterTerm = _price.Value.ToString();
-            string actualPrice = e.Price.ToString();
+            var filterTerm = _price.Value.ToString();
+            var actualPrice = e.Price.ToString();
 
             if (!actualPrice.Contains(filterTerm))
                 return false;
         }
-        
+
         return true;
     }
 
@@ -542,14 +575,14 @@
         _selectedDateRange = range;
         if (grid != null) await grid.ReloadServerData();
     }
-    
+
     private async Task OnPriceFilterChanged(decimal? newValue)
     {
         _price = newValue;
-        if (grid != null) 
-            await grid.ReloadServerData(); 
+        if (grid != null)
+            await grid.ReloadServerData();
     }
-    
+
     private async Task OnSearchTextChanged()
     {
         if (grid != null) await grid.ReloadServerData();

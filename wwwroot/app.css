@@ -1,5 +1,6 @@
 :root {
     color-scheme: light dark;
+    --app-bottom-inset: env(safe-area-inset-bottom, 0px);
 }
 
 html, body {
@@ -11,8 +12,6 @@ html, body {
     overscroll-behavior: none;
     background-color: var(--mud-palette-background, #ffffff);
     color: var(--mud-palette-text-primary, inherit);
-    touch-action: pan-y;
-    overscroll-behavior-x: none;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -59,7 +58,7 @@ body {
     box-sizing: border-box;
 }
 
-/* Detail routes (expense/mileage view-edit, …) are not swipe panes.
+/* Detail routes (expense/mileage view-edit, announce, …) are not swipe panes.
    html/body overflow is hidden for the shell, so this element must be the scroller.
    Pin it like .section-pane: iOS WKWebView will not pan a % height box, and
    overflow-x:hidden + overflow-y:auto on the same element drops the gesture. */
@@ -159,9 +158,12 @@ html.app-android .mud-popover.app-autocomplete-list {
 
 .section-pane:has(.home-footer),
 .section-pane:has(.settings-footer),
-.section-pane:has(.mileage-add-footer),
+.section-pane:has(.mileage-add-footer) {
+    padding-bottom: calc(56px + var(--app-bottom-inset));
+}
+
 .section-pane:has(.status-footer-container) {
-    padding-bottom: 56px;
+    padding-bottom: calc(72px + var(--app-bottom-inset));
 }
 
 .section-shell.is-settling .section-pane {
@@ -193,19 +195,6 @@ html.app-android .mud-popover.app-autocomplete-list {
 /* Top nav: keep icons on one row. Compact sizes apply only when the bar is crowded. */
 .app-topbar .mud-toolbar {
     flex-wrap: nowrap !important;
-}
-
-/* Override MudBlazor's touch-action:none so the WebView does not cancel horizontal pans. */
-.app-swipe-area.mud-swipearea {
-    display: block;
-    width: 100%;
-    min-height: calc(100vh - 64px);
-    touch-action: pan-y !important;
-    overscroll-behavior-x: none;
-}
-
-.app-swipe-area * {
-    touch-action: pan-y;
 }
 
 .app-nav-icons {
@@ -324,12 +313,12 @@ h1:focus {
     z-index: 1000;
 }
 
-    #blazor-error-ui .dismiss {
-        cursor: pointer;
-        position: absolute;
-        right: 0.75rem;
-        top: 0.5rem;
-    }
+#blazor-error-ui .dismiss {
+    cursor: pointer;
+    position: absolute;
+    right: 0.75rem;
+    top: 0.5rem;
+}
 
 .blazor-error-boundary {
     background: url(data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTYiIGhlaWdodD0iNDkiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIG92ZXJmbG93PSJoaWRkZW4iPjxkZWZzPjxjbGlwUGF0aCBpZD0iY2xpcDAiPjxyZWN0IHg9IjIzNSIgeT0iNTEiIHdpZHRoPSI1NiIgaGVpZ2h0PSI0OSIvPjwvY2xpcFBhdGg+PC9kZWZzPjxnIGNsaXAtcGF0aD0idXJsKCNjbGlwMCkiIHRyYW5zZm9ybT0idHJhbnNsYXRlKC0yMzUgLTUxKSI+PHBhdGggZD0iTTI2My41MDYgNTFDMjY0LjcxNyA1MSAyNjUuODEzIDUxLjQ4MzcgMjY2LjYwNiA1Mi4yNjU4TDI2Ny4wNTIgNTIuNzk4NyAyNjcuNTM5IDUzLjYyODMgMjkwLjE4NSA5Mi4xODMxIDI5MC41NDUgOTIuNzk1IDI5MC42NTYgOTIuOTk2QzI5MC44NzcgOTMuNTEzIDI5MSA5NC4wODE1IDI5MSA5NC42NzgyIDI5MSA5Ny4wNjUxIDI4OS4wMzggOTkgMjg2LjYxNyA5OUwyNDAuMzgzIDk5QzIzNy45NjMgOTkgMjM2IDk3LjA2NTEgMjM2IDk0LjY3ODIgMjM2IDk0LjM3OTkgMjM2LjAzMSA5NC4wODg2IDIzNi4wODkgOTMuODA3MkwyMzYuMzM4IDkzLjAxNjIgMjM2Ljg1OCA5Mi4xMzE0IDI1OS40NzMgNTMuNjI5NCAyNTkuOTYxIDUyLjc5ODUgMjYwLjQwNyA1Mi4yNjU4QzI2MS4yIDUxLjQ4MzcgMjYyLjI5NiA1MSAyNjMuNTA2IDUxWk0yNjMuNTg2IDY2LjAxODNDMjYwLjczNyA2Ni4wMTgzIDI1OS4zMTMgNjcuMTI0NSAyNTkuMzEzIDY5LjMzNyAyNTkuMzEzIDY5LjYxMDIgMjU5LjMzMiA2OS44NjA4IDI1OS4zNzEgNzAuMDg4N0wyNjEuNzk1IDg0LjAxNjEgMjY1LjM4IDg0LjAxNjEgMjY3LjgyMSA2OS43NDc1QzI2Ny44NiA2OS43MzA5IDI2Ny44NzkgNjkuNTg3NyAyNjcuODc5IDY5LjMxNzkgMjY3Ljg3OSA2Ny4xMTgyIDI2Ni40NDggNjYuMDE4MyAyNjMuNTg2IDY2LjAxODNaTTI2My41NzYgODYuMDU0N0MyNjEuMDQ5IDg2LjA1NDcgMjU5Ljc4NiA4Ny4zMDA1IDI1OS43ODYgODkuNzkyMSAyNTkuNzg2IDkyLjI4MzcgMjYxLjA0OSA5My41Mjk1IDI2My41NzYgOTMuNTI5NSAyNjYuMTE2IDkzLjUyOTUgMjY3LjM4NyA5Mi4yODM3IDI2Ny4zODcgODkuNzkyMSAyNjcuMzg3IDg3LjMwMDUgMjY2LjExNiA4Ni4wNTQ3IDI2My41NzYgODYuMDU0N1oiIGZpbGw9IiNGRkU1MDAiIGZpbGwtcnVsZT0iZXZlbm9kZCIvPjwvZz48L3N2Zz4=) no-repeat 1rem/1.8rem, #b32121;
@@ -337,9 +326,9 @@ h1:focus {
     color: white;
 }
 
-    .blazor-error-boundary::after {
-        content: "An error has occurred."
-    }
+.blazor-error-boundary::after {
+    content: "An error has occurred."
+}
 
 .darker-border-checkbox.form-check-input {
     border-color: #929292;
@@ -359,6 +348,10 @@ h1:focus {
 }
 
 @supports (-webkit-touch-callout: none) {
+    :root {
+        --app-bottom-inset: max(0px, calc(env(safe-area-inset-bottom, 0px) - 24px));
+    }
+
     .status-bar-safe-area {
         display: flex;
         position: sticky;
@@ -380,64 +373,68 @@ h1:focus {
     bottom: 0;
     left: 0;
     right: 0;
-    height: 52px;
+    height: auto;
+    min-height: calc(52px + var(--app-bottom-inset));
     background: var(--mud-palette-surface, #f8f9fa);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px); /* Safari support */
     border-top: 1px solid var(--mud-palette-lines-default, #d0d4d8);
-    box-shadow: 0 -4px 12px rgba(0,0,0,0.05);
+    box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.05);
     z-index: 1000;
     display: flex;
     align-items: center;
     justify-content: space-evenly;
-    padding: 0 20px;
+    padding: 8px 20px var(--app-bottom-inset);
+    box-sizing: border-box;
     font-size: 13px;
     color: var(--mud-palette-text-primary, #444);
     font-weight: 500;
     font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
-    .home-footer .item {
-        text-align: center;
-        white-space: nowrap;
-    }
+.home-footer .item {
+    text-align: center;
+    white-space: nowrap;
+}
 
-    .home-footer .divider {
-        height: 28px;
-        border-left: 1px solid var(--mud-palette-lines-default, rgba(0,0,0,0.1));
-        border-right: 1px solid var(--mud-palette-lines-default, rgba(0,0,0,0.1));
-        margin: 0 16px;
-    }
+.home-footer .divider {
+    align-self: stretch;
+    height: auto;
+    border-left: 1px solid var(--mud-palette-lines-default, rgba(0, 0, 0, 0.1));
+    border-right: 1px solid var(--mud-palette-lines-default, rgba(0, 0, 0, 0.1));
+    margin: 8px 16px;
+}
 
-    .home-footer .year {
-        opacity: 0.75;
-        font-size: 12px;
-        font-weight: bold;
-        white-space: nowrap;
-        padding-left: 16px;
-    }
+.home-footer .year {
+    opacity: 0.75;
+    font-size: 12px;
+    font-weight: bold;
+    white-space: nowrap;
+    padding-left: 16px;
+}
 
-    .home-footer .expense {
-        color: #ef233c;
-        font-weight: 600;
-    }
+.home-footer .expense {
+    color: #ef233c;
+    font-weight: 600;
+}
 
-    .home-footer .income {
-        color: #06d6a0;
-        font-weight: 600;
-    }
+.home-footer .income {
+    color: #06d6a0;
+    font-weight: 600;
+}
 
 /* Optional: smaller on very narrow screens */
 @media (max-width: 480px) {
     .home-footer {
         font-size: 12px;
-        padding: 0 12px;
-        height: 46px;
+        padding: 8px 12px var(--app-bottom-inset);
+        height: auto;
+        min-height: calc(46px + var(--app-bottom-inset));
     }
 
-        .home-footer .divider {
-            margin: 0 10px;
-        }
+    .home-footer .divider {
+        margin: 0 10px;
+    }
 }
 
 
@@ -447,88 +444,40 @@ h1:focus {
     bottom: 0;
     left: 0;
     right: 0;
-    height: 48px;
+    height: auto;
+    min-height: calc(48px + var(--app-bottom-inset));
     background-color: var(--mud-palette-surface, #f5f5f5);
     border-top: 1px solid var(--mud-palette-lines-default, #ddd);
     z-index: 1000;
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 0 12px;
+    padding: 0 12px var(--app-bottom-inset);
+    box-sizing: border-box;
     font-size: 13px;
     color: var(--mud-palette-text-primary, #212121);
     font-family: system-ui, sans-serif;
 }
 
-    .mileage-add-footer span {
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        max-width: 95%;
-        text-align: center;
-    }
-
-    .mileage-add-footer strong.vehicle {
-        color: var(--mud-palette-info, #0066cc);
-    }
-
-    .mileage-add-footer strong.economy {
-        color: var(--mud-palette-success, #27ae60);
-    }
-
-    .mileage-add-footer .unit {
-        color: var(--mud-palette-text-secondary, #555);
-        font-size:smaller;
-    }
-
-/*Settings CSS*/
-.settings-footer {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    width: 100%;
-    height: 44px;
-    background-color: var(--mud-palette-surface, #f5f5f5);
-    border-top: 1px solid var(--mud-palette-lines-default, #ddd);
-    z-index: 1000;
-    display: flex;
-    align-items: center;
-    padding: 0 16px;
-    font-size: 14px;
-    color: var(--mud-palette-text-primary, #212121);
-    box-sizing: border-box;
+.mileage-add-footer span {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 95%;
+    text-align: center;
 }
 
-    .settings-footer span {
-        white-space: nowrap;
-    }
-
-    .settings-footer strong {
-        font-weight: 700;
-        color: var(--mud-palette-text-primary, #212121);
-    }
-
-    .settings-footer .version,
-    .settings-footer .released {
-        font-weight: 500;
-    }
-
-    .settings-footer .spacer {
-        flex-grow: 1;
-    }
-
-.text-muted {
-    color: var(--mud-palette-text-secondary, #757575);
+.mileage-add-footer strong.vehicle {
+    color: var(--mud-palette-info, #0066cc);
 }
 
-.app-dark .text-muted {
-    color: var(--mud-palette-text-primary);
-    opacity: 0.82;
+.mileage-add-footer strong.economy {
+    color: var(--mud-palette-success, #27ae60);
 }
 
-.app-dark .mileage-add-footer .unit {
-    color: var(--mud-palette-text-primary);
-    opacity: 0.85;
+.mileage-add-footer .unit {
+    color: var(--mud-palette-text-secondary, #555);
+    font-size: smaller;
 }
 
 /* Appearance theme picker — keep hint text readable in dark mode */
@@ -542,6 +491,57 @@ h1:focus {
 .app-dark .theme-option-hint {
     opacity: 0.92;
     color: var(--mud-palette-text-primary);
+}
+
+/*Settings CSS*/
+.settings-footer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: auto;
+    min-height: calc(44px + var(--app-bottom-inset));
+    background-color: var(--mud-palette-surface, #f5f5f5);
+    border-top: 1px solid var(--mud-palette-lines-default, #ddd);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    padding: 0 16px var(--app-bottom-inset);
+    font-size: 14px;
+    color: var(--mud-palette-text-primary, #212121);
+    box-sizing: border-box;
+}
+
+.settings-footer span {
+    white-space: nowrap;
+}
+
+.settings-footer strong {
+    font-weight: 700;
+    color: var(--mud-palette-text-primary, #212121);
+}
+
+.settings-footer .version,
+.settings-footer .released {
+    font-weight: 500;
+}
+
+.settings-footer .spacer {
+    flex-grow: 1;
+}
+
+.text-muted {
+    color: var(--mud-palette-text-secondary, #757575);
+}
+
+.app-dark .text-muted {
+    color: var(--mud-palette-text-primary);
+    opacity: 0.82;
+}
+
+.app-dark .mileage-add-footer .unit {
+    color: var(--mud-palette-text-primary);
+    opacity: 0.85;
 }
 
 /* Shahenshahi calendar — original light grid; bluish only in dark mode */
@@ -698,4 +698,51 @@ h1:focus {
 .app-dark .view-row-date {
     color: var(--mud-palette-text-primary, #f5f5f5) !important;
     opacity: 1;
+}
+
+/* Pull-to-refresh: growing header inside the page scroller. */
+.ptr-root {
+    min-height: 100%;
+}
+
+.ptr-indicator {
+    height: 0;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    transition: height 0.18s ease-out;
+}
+
+.ptr-root.is-pulling .ptr-indicator {
+    transition: none;
+}
+
+.ptr-spinner {
+    width: 22px;
+    height: 22px;
+    border: 2.5px solid var(--mud-palette-primary, #0288d1);
+    border-top-color: transparent;
+    border-radius: 50%;
+    transform: rotate(var(--ptr-rot, 0deg));
+    opacity: 0.85;
+}
+
+.ptr-root.is-armed .ptr-spinner,
+.ptr-root.is-refreshing .ptr-spinner {
+    animation: ptr-spin 0.7s linear infinite;
+}
+
+@keyframes ptr-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.currency-code {
+    font-size: 0.68em;
+    font-weight: 500;
+    margin-left: 2px;
+    opacity: 0.85;
 }

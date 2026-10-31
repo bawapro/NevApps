@@ -1,0 +1,269 @@
+@page "/test"
+
+<MudContainer Class="pa-4">
+    <MudText Typo="Typo.h5" Color="Color.Primary">Receipt scan test</MudText>
+    <MudText Typo="Typo.body2" Class="mt-1 mb-4">
+        @savedPlaceNames.Count saved places, @savedGasStations.Count saved stations.
+    </MudText>
+
+    <MudStack Row="true" Spacing="2" Wrap="Wrap.Wrap" Class="mb-4">
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   Disabled="busy"
+                   OnClick="ScanExpenseReceipt">
+            Scan Expense
+        </MudButton>
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Secondary"
+                   Disabled="busy"
+                   OnClick="ScanMileageReceipt">
+            Scan Fuel
+        </MudButton>
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Success"
+                   Disabled="busy"
+                   OnClick="ScanEvReceipt">
+            Scan EV
+        </MudButton>
+    </MudStack>
+
+    @if (busy)
+    {
+        <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mb-4"/>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(error))
+    {
+        <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="mb-4">@error</MudAlert>
+    }
+
+    @if (imageSrc != null)
+    {
+        <MudImage Src="@imageSrc" Alt="Scanned receipt" Class="mb-1" Style="max-width:100%;"/>
+        <MudText Typo="Typo.body2" Class="mb-4">@imageSizeMb MB</MudText>
+    }
+
+    @if (hasExpense)
+    {
+        <MudPaper Class="pa-4 mb-4" Outlined="true">
+            <MudText Typo="Typo.h6" Class="mb-2">Expense</MudText>
+            <MudText Typo="Typo.body1">Date: @expenseDate?.ToString("yyyy-MM-dd HH:mm")</MudText>
+            <MudText Typo="Typo.body1">Place: @expensePlace</MudText>
+            <MudText Typo="Typo.body1">Amount: @expenseAmount.ToString("0.00")</MudText>
+            @if (lastReceipt?.Phone != null)
+            {
+                <MudText Typo="Typo.body1">Phone: @lastReceipt.Phone</MudText>
+            }
+            @if (lastReceipt?.Address != null)
+            {
+                <MudText Typo="Typo.body1">Address: @lastReceipt.Address</MudText>
+            }
+            @if (lastReceipt?.MatchedPlaces is { Count: > 0 })
+            {
+                <MudStack Row="true" Spacing="1" Wrap="Wrap.Wrap" Class="mt-2">
+                    @foreach (var place in lastReceipt.MatchedPlaces)
+                    {
+                        <MudChip T="string" Size="Size.Small" Color="Color.Primary">@place</MudChip>
+                    }
+                </MudStack>
+            }
+            @if (lastReceipt?.Items is { Count: > 0 })
+            {
+                <MudText Typo="Typo.subtitle2" Class="mt-3">Line items</MudText>
+                @foreach (var item in lastReceipt.Items)
+                {
+                    <MudText Typo="Typo.body2">
+                        @(item.Quantity is null ? "" : $"{item.Quantity} x ")@item.Description — @item.Amount.ToString("0.00")
+                    </MudText>
+                }
+            }
+        </MudPaper>
+    }
+
+    @if (hasGas)
+    {
+        <MudPaper Class="pa-4 mb-4" Outlined="true">
+            <MudText Typo="Typo.h6" Class="mb-2">@(isEv ? "EV" : "Fuel")</MudText>
+            <MudText Typo="Typo.body1">Date: @gasDate?.ToString("yyyy-MM-dd HH:mm")</MudText>
+            <MudText Typo="Typo.body1">@(isEv ? "Charging Station" : "Gas Station"): @(gasStation ?? "—")</MudText>
+            <MudText Typo="Typo.body1">Address: @(gasAddress ?? "—")</MudText>
+            <MudText Typo="Typo.body1">@(isEv ? "Charge Type" : "Fuel Type"): @(fuelType ?? "—")</MudText>
+            <MudText Typo="Typo.body1">@(isEv ? "Energy Rate" : "Fuel Rate"): @fuelRate.ToString(isEv ? "0.0000" : "0.000") @rateUnit</MudText>
+            <MudText Typo="Typo.body1">@(isEv ? "Energy Added" : "Fuel Filled"): @fuelFilled.ToString("0.000") @filledUnit</MudText>
+            <MudText Typo="Typo.body1">@(isEv ? "Charge Cost" : "Fuel Price"): @(fuelPrice?.ToString("0.00") ?? "—")</MudText>
+            <MudText Typo="Typo.body1">@(isEv ? "Efficiency" : "Fuel Mileage"): @(fuelMileage?.ToString("0.00") ?? "—") @economyUnit</MudText>
+        </MudPaper>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(rawText))
+    {
+        <MudText Typo="Typo.subtitle1" Class="mb-2">Scanned text</MudText>
+        <MudPaper Class="pa-3" Outlined="true" Style="max-height:280px; overflow:auto; white-space:pre-wrap;">
+            @rawText
+        </MudPaper>
+    }
+</MudContainer>
+
+@code {
+    [Inject] private IReceiptScanService ScanService { get; set; } = default!;
+
+    private bool busy;
+    private bool hasExpense;
+    private bool hasGas;
+    private bool isEv;
+    private bool isImperial;
+    private string? error;
+    private string? rawText;
+    private string? imageSrc;
+    private string? imageSizeMb;
+    private List<string> savedPlaceNames = [];
+    private List<string> savedGasStations = [];
+
+    private DateTime? expenseDate;
+    private decimal expenseAmount;
+    private string? expensePlace;
+    private ReceiptParseResult? lastReceipt;
+
+    private DateTime? gasDate;
+    private string? gasStation;
+    private string? gasAddress;
+    private decimal fuelFilled;
+    private decimal fuelRate;
+    private decimal? fuelPrice;
+    private string? fuelType;
+    private decimal? fuelMileage;
+
+    private string rateUnit => isEv ? "(Price/kWh)" : isImperial ? "(Price/Gallon)" : "(Price/Litre)";
+    private string filledUnit => isEv ? "(kWh)" : isImperial ? "(Gallons)" : "(Litres)";
+    private string economyUnit => isEv
+        ? isImperial ? "(mi/kWh)" : "(kWh/100km)"
+        : isImperial ? "(MPG)" : "(L/100km)";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            savedPlaceNames = (await ExpenseTrackerService.GetPlacesForReceiptScanAsync())
+                .Where(place => !string.IsNullOrWhiteSpace(place))
+                .Select(place => place.Trim())
+                .ToList();
+            savedGasStations = (await MileageTrackerService.GetGasStationsAsync(string.Empty))
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .Select(name => name!.Trim())
+                .ToList();
+            var settings = await SettingsService.GetSettingsAsync();
+            isImperial = settings.Any(x => x.SettingKey == "country" &&
+                                           x.SettingValue?.ToLower() == "united states");
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+            LoggerService.Log("Receipt scan test load", ex);
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task ScanExpenseReceipt()
+    {
+        if (busy)
+            return;
+
+        busy = true;
+        error = null;
+        try
+        {
+            var result = await ScanService.ScanAsync(
+                new ReceiptScanOptions(ReceiptScan.Expense, KnownPlaces: savedPlaceNames));
+            ApplyCapture(result);
+            if (!result.Success || result.Receipt == null)
+            {
+                error = result.ErrorMessage ?? "Scan failed";
+                Snackbar.Add(error, Severity.Warning);
+                return;
+            }
+
+            expenseDate = result.Receipt.Date ?? DateTime.Now;
+            expenseAmount = result.Receipt.Total ?? 0m;
+            expensePlace = result.Receipt.Place ?? "Unknown";
+            lastReceipt = result.Receipt;
+            hasExpense = true;
+            Snackbar.Add("Expense receipt scanned.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+            LoggerService.Log("ScanExpenseReceipt", ex);
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private Task ScanMileageReceipt() => ScanMileage(ReceiptScan.Fuel, "Fuel receipt scanned.");
+
+    private Task ScanEvReceipt() => ScanMileage(ReceiptScan.Ev, "EV receipt scanned.");
+
+    private async Task ScanMileage(ReceiptScan scan, string success)
+    {
+        if (busy)
+            return;
+
+        busy = true;
+        error = null;
+        try
+        {
+            var result = await ScanService.ScanAsync(
+                new ReceiptScanOptions(scan, KnownStations: savedGasStations));
+            ApplyCapture(result);
+            if (!result.Success || result.Mileage == null)
+            {
+                error = result.ErrorMessage ?? "Scan failed";
+                Snackbar.Add(error, Severity.Warning);
+                return;
+            }
+
+            var mileage = result.Mileage;
+            isEv = mileage.Scan == ReceiptScan.Ev;
+            gasDate = mileage.Date;
+            gasStation = mileage.Station;
+            gasAddress = mileage.Address;
+            fuelRate = mileage.Rate;
+            fuelFilled = mileage.Filled;
+            fuelPrice = mileage.Price;
+            fuelType = mileage.Type;
+            fuelMileage = mileage.Mileage;
+            hasGas = true;
+            Snackbar.Add(success, Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+            LoggerService.Log(scan == ReceiptScan.Ev ? "ScanEvReceipt" : "ScanMileageReceipt", ex);
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private void ApplyCapture(ScanReceiptResult result)
+    {
+        rawText = result.RawOcrText;
+        imageSrc = ToImageSrc(result.ProcessedImageBytes);
+        imageSizeMb = imageSrc == null
+            ? null
+            : (result.ProcessedImageBytes!.Length / (1024d * 1024d)).ToString("0.00");
+    }
+
+    private static string? ToImageSrc(byte[]? bytes)
+    {
+        if (bytes is not { Length: > 3 })
+            return null;
+
+        var mime = bytes[0] == 0x89 && bytes[1] == 0x50 ? "image/png" : "image/jpeg";
+        return $"data:{mime};base64,{Convert.ToBase64String(bytes)}";
+    }
+}

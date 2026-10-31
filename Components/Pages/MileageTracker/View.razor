@@ -26,7 +26,7 @@
     </MudStack>
     <MudText Typo="Typo.caption"
              Style="font-style: italic; opacity: 0.85; letter-spacing: 0.3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;">
-        Review & manage your travel/fuel records
+        Review & manage your travel-fuel records
     </MudText>
 </MudContainer>
 
@@ -170,9 +170,9 @@
                         SortBy="@(x => x.Date)">
             <CellTemplate>
                 @{
-                    bool isEV = StateService.GetVehicleIsEV(context.Item.Vehicle);
-                    string volumeUnit = isEV ? "(kWh)" : (isImperial ? "(G)" : "(L)");
-                    string economyUnit = isEV ? (isImperial ? "(mi/kWh)" : "(kWh/100km)") : (isImperial ? "(MPG)" : "(L/100km)");
+                    var isEV = StateService.GetVehicleIsEV(context.Item.Vehicle);
+                    var volumeUnit = isEV ? "(kWh)" : isImperial ? "(G)" : "(L)";
+                    var economyUnit = isEV ? isImperial ? "(mi/kWh)" : "(kWh/100km)" : isImperial ? "(MPG)" : "(L/100km)";
                     var energyIcon = isEV ? Icons.Material.Filled.ElectricalServices : Icons.Material.Filled.FormatColorFill;
                     var stationIcon = isEV ? Icons.Material.Filled.EvStation : Icons.Material.Filled.LocalGasStation;
                     var filledColor = isEV ? Color.Success : Color.Info;
@@ -272,7 +272,7 @@
                             <MudStack Spacing="0"
                                       AlignItems="AlignItems.End">
                                 <MudText Typo="Typo.subtitle2">
-                                    <b>@((Convert.ToDecimal(context.Item.FuelPrice)).ToString("C", new System.Globalization.CultureInfo(string.IsNullOrEmpty(culture) ? "en-US" : culture)))</b>
+                                    <b>@Convert.ToDecimal(context.Item.FuelPrice).ToString("C", new CultureInfo(string.IsNullOrEmpty(culture) ? "en-US" : culture))</b>
                                 </MudText>
                                 <MudText Typo="Typo.caption"
                                          Style="font-size: 0.7rem;">Total Cost
@@ -419,8 +419,9 @@
 
 @code {
 
-    private bool isImperial = false;
-    private string errorMsg = "", searchText = "", culture = "";
+    private bool isImperial;
+    private readonly string errorMsg = "";
+    private string searchText = "", culture = "";
     private IEnumerable<MileageTracker>? mileages;
     private MudDataGrid<MileageTracker>? grid;
 
@@ -430,14 +431,14 @@
         {
             await LoadMileages();
             var Settings = await SettingsService.GetSettingsAsync();
-            string country = Settings.Where(x => x.SettingKey == "country").FirstOrDefault()?.SettingValue!;
+            var country = Settings.Where(x => x.SettingKey == "country").FirstOrDefault()?.SettingValue!;
             culture = SettingsService.GetCultureCode(country);
             isImperial = Settings.Any(x => x.SettingKey == "country" && x.SettingValue.ToLower() == "united states");
             _dbVehicles = await MileageTrackerService.GetAllVehiclesAsync();
         }
         catch (Exception ex)
         {
-            LoggerService.Log($"OnInitializedAsync - {this.GetType().FullName}", ex);
+            LoggerService.Log($"OnInitializedAsync - {GetType().FullName}", ex);
             Snackbar.Add(Constants.OnLoadErrorMessage, Severity.Error);
         }
     }
@@ -450,7 +451,7 @@
         }
         catch (Exception ex)
         {
-            await DialogService.ShowMessageBoxAsync("Error", ex.Message, "OK");
+            await DialogService.ShowMessageBoxAsync("Error", ex.Message);
         }
     }
 
@@ -462,6 +463,8 @@
         await grid.RemoveSortAsync("Date");
         await grid.SetSortAsync("Date", SortDirection.Descending, x => x.Date);
         await grid.SetSortAsync("Id", SortDirection.Descending, x => x.Id);
+
+        // Optional: grid.StateHasChanged(); but usually not needed
     }
 
     private async Task OnPageSizeChanged(int newSize)
@@ -469,6 +472,7 @@
         if (grid != null)
         {
             await grid.SetRowsPerPageAsync(newSize);
+            // Optional: go back to first page after size change (common UX)
             grid.NavigateTo(Page.First);
             await InvokeAsync(StateHasChanged);
         }
@@ -478,7 +482,7 @@
     {
         var parameters = new DialogParameters<Edit> { { x => x.MileageData, mileage }, { x => x.OnSaved, RefreshGrid }, { x => x.isImperial, isImperial } };
 
-        var options = new DialogOptions()
+        var options = new DialogOptions
         {
             CloseButton = true,
             MaxWidth = MaxWidth.Medium,
@@ -497,13 +501,13 @@
 
     private async Task Delete(MileageTracker obj)
     {
-        bool? result = await DialogService.ShowMessageBoxAsync("Confirm Delete", "Are you sure you want to delete this entry? This action cannot be undone.", yesText: "Yes", cancelText: "Cancel");
+        var result = await DialogService.ShowMessageBoxAsync("Confirm Delete", "Are you sure you want to delete this entry? This action cannot be undone.", "Yes", cancelText: "Cancel");
 
         if (result == true)
         {
             try
             {
-                int n = await MileageTrackerService.DeleteMileageAsync(obj.Id);
+                var n = await MileageTrackerService.DeleteMileageAsync(obj.Id);
 
                 if (n > 0)
                     Snackbar.Add("Entry deleted successfully!", Severity.Success);
@@ -514,12 +518,12 @@
             }
             catch (Exception ex)
             {
-                await DialogService.ShowMessageBoxAsync("Error", ex.Message, "OK");
+                await DialogService.ShowMessageBoxAsync("Error", ex.Message);
             }
         }
     }
 
-    private bool _showFilterPopover = false;
+    private bool _showFilterPopover;
 
     private List<string> _dbVehicles = new();
     private List<string> _dbStarts = new();
@@ -530,7 +534,7 @@
     private IReadOnlyCollection<string> _selectedStarts = new HashSet<string>();
     private IReadOnlyCollection<string> _selectedEnds = new HashSet<string>();
     private IReadOnlyCollection<string> _selectedGasStations = new HashSet<string>();
-    private DateRange _selectedDateRange = new DateRange(null, null);
+    private DateRange _selectedDateRange = new(null, null);
 
     private int ActiveFilterCount =>
         (_selectedVehicles != null && _selectedVehicles.Any() ? 1 : 0) +
@@ -539,7 +543,10 @@
         (_selectedGasStations != null && _selectedGasStations.Any() ? 1 : 0) +
         (_selectedDateRange?.Start != null ? 1 : 0);
 
-    private void ToggleFilterPopover() => _showFilterPopover = !_showFilterPopover;
+    private void ToggleFilterPopover()
+    {
+        _showFilterPopover = !_showFilterPopover;
+    }
 
     private async Task OnVehiclesChanged(IReadOnlyCollection<string> values)
     {
@@ -580,7 +587,7 @@
 
         if (grid != null) await grid.ReloadServerData();
     }
-    
+
     private async Task ClearAllFilters()
     {
         _selectedVehicles = new HashSet<string>();
@@ -602,10 +609,10 @@
         if (!string.IsNullOrWhiteSpace(searchText))
         {
             var term = searchText.Trim().ToLowerInvariant();
-            bool matchesText = (e.End?.ToLowerInvariant().Contains(term) ?? false) ||
-                               (e.Detail?.ToLowerInvariant().Contains(term) ?? false) ||
-                               (e.Vehicle?.ToLowerInvariant().Contains(term) ?? false) ||
-                               (e.GasStation?.ToLowerInvariant().Contains(term) ?? false);
+            var matchesText = (e.End?.ToLowerInvariant().Contains(term) ?? false) ||
+                              (e.Detail?.ToLowerInvariant().Contains(term) ?? false) ||
+                              (e.Vehicle?.ToLowerInvariant().Contains(term) ?? false) ||
+                              (e.GasStation?.ToLowerInvariant().Contains(term) ?? false);
 
             if (!matchesText) return false;
         }
@@ -633,37 +640,4 @@
 
         return true;
     }
-
-
-    /*Not Used 
-    private async Task DeleteAll()
-    {
-        var parameters = new DialogParameters<Dialogs.Delete>
-        {
-            { x => x.Title, "DELETE ALL ENTRIES" },
-            { x => x.Message, "This will permanently delete EVERY entry in your tracker. There is no recovery." },
-            { x => x.ConfirmButtonText, "Delete Everything" },
-            { x => x.RequireTyping, true },
-            { x => x.ConfirmWord, "DELETE ALL" }
-        };
-
-        try
-        {
-
-            var dialog = await DialogService.ShowAsync<Dialogs.Delete>("", parameters);
-            var result = await dialog.Result;
-
-            if (result != null && !result.Canceled)
-            {
-                await MileageTrackerService.DeleteAllMileagesAsync();
-                await LoadMileage();
-                Snackbar.Add("All entries deleted permanently.", Severity.Error);
-            }
-        }
-        catch (Exception ex)
-        {
-            await DialogService.ShowMessageBoxAsync("Error", ex.Message, "OK");
-        }
-    }
-    */
 }

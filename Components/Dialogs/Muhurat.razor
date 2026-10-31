@@ -12,12 +12,11 @@
     </TitleContent>
     <DialogContent>
         <MudList T="string"
-                 Clickable="false"
                  Dense="true"
                  Class="pa-0">
             @foreach (var slot in MuhurtaData)
             {
-                bool isCurrentActive = (slot.Name == CurrentMuharatName);
+                var isCurrentActive = slot.Name == CurrentMuharatName;
 
                 <MudListItem Dense="true"
                              Class="py-1 px-2 my-1 rounded"
@@ -28,7 +27,7 @@
                             @slot.TimeRange
                         </MudText>
                         <MudChip T="string"
-                                 Size="Size.Small" 
+                                 Size="Size.Small"
                                  Color="@(isCurrentActive ? Color.Primary : GetMuhuratColor(slot.Name))"
                                  Variant="@(isCurrentActive ? Variant.Filled : Variant.Outlined)">
                             @slot.Name
@@ -49,17 +48,18 @@
 
     protected override void OnInitialized()
     {
-        MuhurtaData = NevApps.Classes.Muhurat.GetFullDayMuhurat(TargetDate);
+        MuhurtaData = Classes.Muhurat.GetFullDayMuhurat(TargetDate);
     }
-    
+
     private Color GetMuhuratColor(string name)
     {
         return name switch
         {
             "Amrit" or "Shub" or "Labh" => Color.Success,
-            "Chal"                      => Color.Warning,
-            "Udveg" or "Rog" or "Kaal"  => Color.Error,
-            _                           => Color.Default
+            "Chal" => Color.Warning,
+            "Udveg" or "Rog" or "Kaal" => Color.Error,
+            _ => Color.Default
         };
     }
+
 }

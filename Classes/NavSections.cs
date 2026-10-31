@@ -1,18 +1,11 @@
 namespace NevApps.Classes;
 
 /// <summary>
-/// Top-level shell sections in app-bar order. Swipe +1 is next (left swipe); -1 is previous.
-/// Both ends wrap. Detail routes (edit/view/…) are not sections.
+///     Top-level shell sections in app-bar order. Swipe +1 is next (left swipe); -1 is previous.
+///     Both ends wrap. Detail routes (edit/view/announce/…) are not sections.
 /// </summary>
 public static class NavSections
 {
-    public readonly record struct Features(
-        bool Expense,
-        bool Mileage,
-        bool Shenshai,
-        bool Steps,
-        bool Admin);
-
     public const int Next = 1;
     public const int Previous = -1;
 
@@ -42,10 +35,8 @@ public static class NavSections
             path = path.TrimEnd('/');
 
         foreach (var known in Canonical)
-        {
             if (string.Equals(known, path, StringComparison.OrdinalIgnoreCase))
                 return true;
-        }
 
         return false;
     }
@@ -55,10 +46,8 @@ public static class NavSections
         var pages = new List<string>(8);
 
         foreach (var path in Canonical)
-        {
             if (IsEnabled(path, features))
                 pages.Add(path);
-        }
 
         var current = CanonicalShell(currentPath);
         if (current is not null && !pages.Exists(p => string.Equals(p, current, StringComparison.OrdinalIgnoreCase)))
@@ -98,18 +87,16 @@ public static class NavSections
             return -1;
 
         for (var i = 0; i < pages.Count; i++)
-        {
             if (string.Equals(pages[i], path, StringComparison.OrdinalIgnoreCase))
                 return i;
-        }
 
         return -1;
     }
 
     /// <summary>
-    /// Circular offset of <paramref name="index"/> relative to <paramref name="selected"/>.
-    /// Neighbors are -1 and +1 so the last page sits left of the first.
-    /// Two pages are ambiguous both ways; <paramref name="dragX"/> picks the incoming side.
+    ///     Circular offset of <paramref name="index" /> relative to <paramref name="selected" />.
+    ///     Neighbors are -1 and +1 so the last page sits left of the first.
+    ///     Two pages are ambiguous both ways; <paramref name="dragX" /> picks the incoming side.
     /// </summary>
     public static int Slot(int index, int selected, int count, double dragX = 0)
     {
@@ -133,33 +120,32 @@ public static class NavSections
             path = path.TrimEnd('/');
 
         foreach (var known in Canonical)
-        {
             if (string.Equals(known, path, StringComparison.OrdinalIgnoreCase))
                 return known;
-        }
 
         return null;
     }
 
-    private static bool IsEnabled(string path, Features features) => path switch
+    private static bool IsEnabled(string path, Features features)
     {
-        Home => features.Expense || features.Mileage || features.Shenshai,
-        Expense => features.Expense,
-        Mileage => features.Mileage,
-        Shenshai => features.Shenshai,
-        Steps => features.Steps,
-        Settings => true,
-        Support => features.Admin,
-        _ => false
-    };
+        return path switch
+        {
+            Home => features.Expense || features.Mileage || features.Shenshai,
+            Expense => features.Expense,
+            Mileage => features.Mileage,
+            Shenshai => features.Shenshai,
+            Steps => features.Steps,
+            Settings => true,
+            Support => features.Admin,
+            _ => false
+        };
+    }
 
     private static int CanonicalIndex(string path)
     {
         for (var i = 0; i < Canonical.Count; i++)
-        {
             if (string.Equals(Canonical[i], path, StringComparison.OrdinalIgnoreCase))
                 return i;
-        }
 
         return Canonical.Count;
     }
@@ -175,4 +161,11 @@ public static class NavSections
             path = path[..cut];
         return path.Trim('/');
     }
+
+    public readonly record struct Features(
+        bool Expense,
+        bool Mileage,
+        bool Shenshai,
+        bool Steps,
+        bool Admin);
 }
