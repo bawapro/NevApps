@@ -18,7 +18,7 @@ internal sealed class AppTestHarness : IDisposable
     }
 
     public ExpenseTrackerService Expenses => new(Db, Logger);
-    public MileageTrackerService Mileage => new(Db, Logger);
+    public MileageTrackerService Mileage => new(Db, Logger, Settings);
     public SettingsService Settings => new(Db);
     public ReminderService Reminders => new(Db, Logger);
     public BackupRestoreService Backup => new(Db, Logger, TempDir);

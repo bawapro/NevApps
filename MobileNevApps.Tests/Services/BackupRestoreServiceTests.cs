@@ -45,8 +45,8 @@ public class BackupRestoreServiceTests : IDisposable
         await _harness.Backup.CreateBackupAsync("snap");
         File.WriteAllText(Path.Combine(_harness.TempDir, Constants.DbName), "changed");
 
-        var (success, message) = await _harness.Backup.RestoreBackupAsync("snap.db3");
-        Assert.True(success);
+        var (success, message) = await _harness.Backup.RestoreBackupAsync("snap.db3", false, null);
+        Assert.True(success, message);
         Assert.Contains("restored", message, StringComparison.OrdinalIgnoreCase);
         Assert.Equal("original", File.ReadAllText(Path.Combine(_harness.TempDir, Constants.DbName)));
     }
@@ -82,5 +82,31 @@ public class BackupRestoreServiceTests : IDisposable
         Assert.Empty(await _harness.Mileage.GetAllMileagesAsync());
         Assert.Empty(await _harness.Settings.GetSettingsAsync());
         Assert.Empty(await _harness.Reminders.GetAllRemindersAsync());
+    }
+
+    [Fact]
+    public async Task RestoreBackupAsync_FromStream_OverwritesLiveDatabase()
+    {
+        WriteLiveDb("original");
+        var livePath = Path.Combine(_harness.TempDir, Constants.DbName);
+        await using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes("downloaded"));
+
+        var (success, message) = await _harness.Backup.RestoreBackupAsync(livePath, true, stream);
+
+        Assert.True(success, message);
+        Assert.Contains("restored", message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("downloaded", File.ReadAllText(livePath));
+    }
+
+    [Fact]
+    public async Task RestoreBackupAsync_FromStream_NullStream_ReturnsFailure()
+    {
+        WriteLiveDb("original");
+        var livePath = Path.Combine(_harness.TempDir, Constants.DbName);
+
+        var (success, message) = await _harness.Backup.RestoreBackupAsync(livePath, true, null);
+
+        Assert.False(success);
+        Assert.Equal("Restore failed.", message);
     }
 }

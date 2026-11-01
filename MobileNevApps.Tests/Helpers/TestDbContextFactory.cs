@@ -18,7 +18,7 @@ internal sealed class TestDbContextFactory : IDbContextFactory<SqLiteDbContext>,
             .Options;
 
         using var db = CreateDbContext();
-        db.Database.EnsureCreated();
+        db.Database.Migrate();
     }
 
     public SqLiteDbContext CreateDbContext() => new(_options);

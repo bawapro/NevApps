@@ -16,7 +16,7 @@ public class MileageTrackerPageTests : BunitPageContext
         cut.WaitForAssertion(() =>
         {
             Assert.Contains("Mileage Tracker", cut.Markup);
-            Assert.Contains("Add your travel and fuel details", cut.Markup);
+            Assert.Contains("Add your travel-fuel details", cut.Markup);
             Assert.Contains("Scan Receipt", cut.Markup);
         });
     }

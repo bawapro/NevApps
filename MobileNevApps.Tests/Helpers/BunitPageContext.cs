@@ -43,6 +43,7 @@ public abstract class BunitPageContext : IAsyncLifetime
         _ctx.Services.AddSingleton(new ReceiptService());
         _ctx.Services.AddSingleton<IOcrService>(new FakeOcrService());
         _ctx.Services.AddSingleton<IStepTrackerService>(new FakeStepTrackerService());
+        _ctx.Services.AddSingleton(new NevAPIService(new HttpClient(new OfflineHttpHandler()), State));
 
         SeedConfiguredProfile();
         return Task.CompletedTask;
@@ -84,5 +85,12 @@ public abstract class BunitPageContext : IAsyncLifetime
     {
         Harness.Dispose();
         await _ctx.DisposeAsync();
+    }
+
+    /// <summary>Keeps page tests off the network: every API call answers 503, so NevAPIService reports offline.</summary>
+    private sealed class OfflineHttpHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+            => Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.ServiceUnavailable));
     }
 }

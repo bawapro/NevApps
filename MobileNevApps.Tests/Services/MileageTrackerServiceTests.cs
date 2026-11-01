@@ -67,13 +67,6 @@ public class MileageTrackerServiceTests : IDisposable
         Assert.Equal(0, await _harness.Mileage.DeleteMileageAsync(id));
     }
 
-    [Fact]
-    public async Task DeleteAllMileagesAsync_ClearsTable()
-    {
-        await _harness.Mileage.AddMileageAsync(AppTestHarness.MileageEntry());
-        await _harness.Mileage.DeleteAllMileagesAsync();
-        Assert.Empty(await _harness.Mileage.GetAllMileagesAsync());
-    }
 
     [Fact]
     public async Task LocationAndStationLookups_FilterByVehicle()

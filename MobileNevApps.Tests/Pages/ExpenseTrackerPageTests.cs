@@ -16,7 +16,7 @@ public class ExpenseTrackerPageTests : BunitPageContext
         cut.WaitForAssertion(() =>
         {
             Assert.Contains("Expense Tracker", cut.Markup);
-            Assert.Contains("Add your expense or income details", cut.Markup);
+            Assert.Contains("Add your income-expense details", cut.Markup);
             Assert.Contains("Scan Receipt", cut.Markup);
             Assert.Contains("Search by Category, Type, Place", cut.Markup);
         });

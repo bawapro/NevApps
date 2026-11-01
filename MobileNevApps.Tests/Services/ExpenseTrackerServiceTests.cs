@@ -221,4 +221,98 @@ public class ExpenseTrackerServiceTests : IDisposable
         var places = await _harness.Expenses.GetPlacesForReceiptScanAsync();
         Assert.Equal(new[] { "Costco" }, places);
     }
+
+    // ---- AutoPay (mirrors the Home page UpdateAutoPay flow) ----
+
+    private async Task RunAutoPayAsync()
+    {
+        var svc = _harness.Expenses;
+        var today = DateOnly.FromDateTime(DateTime.Now);
+        foreach (var payment in await svc.GetAutoPayments(isUpdate: true))
+        {
+            if (!payment.AutoPayDate.HasValue || payment.AutoPayDate.Value > today || string.IsNullOrEmpty(payment.Frequency))
+                continue;
+            var id = payment.Id;
+            var oldDate = payment.Date;
+            payment.Id = 0;
+            payment.Date = payment.AutoPayDate.Value;
+            payment.AutoPayDate = svc.GetNextDate(payment.AutoPayDate.Value, payment.Frequency);
+            await svc.UpdateAutoPaymentsAsync(payment);
+            payment.Id = id;
+            payment.Date = oldDate;
+            payment.AutoPayDate = null;
+            payment.AutoPay = null;
+            payment.Frequency = null;
+            await svc.UpdateAutoPaymentsAsync(payment);
+        }
+    }
+
+    [Fact]
+    public async Task UpdateAutoPaymentsAsync_IdZero_InsertsNewRow()
+    {
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        var row = AppTestHarness.Expense(autoPay: 1, autoPayDate: today, frequency: Constants.AutoPay.Monthly);
+        row.Id = 0;
+
+        var n = await _harness.Expenses.UpdateAutoPaymentsAsync(row);
+
+        Assert.Equal(1, n);
+        Assert.Single(await _harness.Expenses.GetAutoPayments());
+    }
+
+    [Fact]
+    public async Task UpdateAutoPaymentsAsync_DueEntry_CreatesNewRowAndAdvancesDate()
+    {
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        var due = today.AddDays(-1);
+        await _harness.Expenses.AddExpenseAsync(AppTestHarness.Expense(place: "Rent", price: 1500m, detail: "Rent",
+            date: due.AddMonths(-1), autoPay: 1, autoPayDate: due, frequency: Constants.AutoPay.Monthly));
+
+        await RunAutoPayAsync();
+
+        var all = (await _harness.Expenses.GetAllExpensesAsync()).Where(e => e.Place == "Rent").ToList();
+        Assert.Equal(2, all.Count);
+        var old = all.Single(e => e.AutoPayDate == null);
+        Assert.Null(old.AutoPay);
+        Assert.Null(old.Frequency);
+        Assert.Equal(due.AddMonths(-1), old.Date);
+        var next = all.Single(e => e.AutoPayDate != null);
+        Assert.Equal(due, next.Date);
+        Assert.Equal(due.AddMonths(1), next.AutoPayDate);
+        Assert.Equal(1, next.AutoPay);
+        Assert.Equal(Constants.AutoPay.Monthly, next.Frequency);
+        Assert.Equal(1500m, next.Price);
+    }
+
+    [Fact]
+    public async Task UpdateAutoPaymentsAsync_RunTwice_DoesNotDuplicate()
+    {
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        await _harness.Expenses.AddExpenseAsync(AppTestHarness.Expense(place: "Gym", detail: "Gym",
+            date: today.AddDays(-7), autoPay: 1, autoPayDate: today, frequency: Constants.AutoPay.Weekly));
+
+        await RunAutoPayAsync();
+        await RunAutoPayAsync();
+
+        var all = (await _harness.Expenses.GetAllExpensesAsync()).Where(e => e.Place == "Gym").ToList();
+        Assert.Equal(2, all.Count);
+        Assert.Equal(today.AddDays(7), all.Single(e => e.AutoPayDate != null).AutoPayDate);
+    }
+
+    [Fact]
+    public async Task UpdateAutoPaymentsAsync_NotDueEntry_IsUntouched()
+    {
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        var future = today.AddYears(1);
+        await _harness.Expenses.AddExpenseAsync(AppTestHarness.Expense(place: "Insurance", detail: "Insurance",
+            date: today, autoPay: 1, autoPayDate: future, frequency: Constants.AutoPay.Yearly));
+
+        await RunAutoPayAsync();
+
+        var all = (await _harness.Expenses.GetAllExpensesAsync()).Where(e => e.Place == "Insurance").ToList();
+        var only = Assert.Single(all);
+        Assert.Equal(future, only.AutoPayDate);
+        Assert.Equal(1, only.AutoPay);
+        Assert.Equal(Constants.AutoPay.Yearly, only.Frequency);
+    }
 }

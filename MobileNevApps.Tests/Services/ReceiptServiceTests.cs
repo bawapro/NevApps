@@ -27,7 +27,8 @@ public class ReceiptServiceTests
             "TOTAL 45.67",
             "Thank you");
 
-        var (date, place, price) = _service.ParseReceiptData(raw, new List<string> { "COSTCO WHOLESALE", "Walmart" });
+        var (date, _, price) = _service.ParseReceiptData(raw);
+        var place = Assert.Single(_service.FindMatchingPlaces(raw, new List<string> { "COSTCO WHOLESALE", "Walmart" }));
 
         Assert.Equal("COSTCO WHOLESALE", place);
         Assert.Equal(45.67m, price);
@@ -45,8 +46,9 @@ public class ReceiptServiceTests
             "Date 01/02/2025 09:00 AM",
             "TOTAL 9.99");
 
-        var (_, place, price) = _service.ParseReceiptData(raw, new List<string> { "Costco" });
+        var (_, place, price) = _service.ParseReceiptData(raw);
         Assert.Equal("Unknown", place);
+        Assert.Empty(_service.FindMatchingPlaces(raw, new List<string> { "Costco" }));
         Assert.Equal(9.99m, price);
     }
 
@@ -61,7 +63,8 @@ public class ReceiptServiceTests
             "03/21/2025",
             "AMOUNT 21.00");
 
-        var (date, place, price) = _service.ParseReceiptData(raw, new List<string> { "SHELL CANADA" });
+        var (date, _, price) = _service.ParseReceiptData(raw);
+        var place = Assert.Single(_service.FindMatchingPlaces(raw, new List<string> { "SHELL CANADA" }));
         Assert.Equal("SHELL CANADA", place);
         Assert.Equal(new DateTime(2025, 3, 21), date.Date);
         Assert.Equal(21.00m, price);
@@ -79,7 +82,7 @@ public class ReceiptServiceTests
             "TOTAL $58.36"
         });
 
-        var (date, station, address, rate, filled) =
+        var (date, station, address, rate, filled, _) =
             _service.ParseGasReceiptData(raw, new List<string> { "PETRO-CANADA", "Shell" });
 
         Assert.Equal("PETRO-CANADA", station);
@@ -100,7 +103,7 @@ public class ReceiptServiceTests
             "10.5 L AT $1.20 /L"
         });
 
-        var (_, station, address, rate, filled) =
+        var (_, station, address, rate, filled, _) =
             _service.ParseGasReceiptData(raw, new List<string> { "Petro" });
 
         Assert.Equal("Unknown", station);

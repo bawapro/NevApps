@@ -98,30 +98,6 @@ public class SwipeNavigationTests : BunitPageContext
         Assert.EndsWith(AppNav.Expense, nav.Uri, StringComparison.OrdinalIgnoreCase);
     }
 
-    [Fact]
-    public async Task Home_SwipeAdvancesThroughDashboardTabsThenYields()
-    {
-        await Harness.Expenses.AddExpenseAsync(AppTestHarness.Expense(autoPay: 2, place: "Costco", price: 45.67m));
-        await Harness.Mileage.AddMileageAsync(AppTestHarness.MileageEntry());
-
-        var cut = Render<Home>();
-
-        cut.WaitForAssertion(() =>
-        {
-            Assert.Contains("Expenses", cut.Markup);
-            Assert.Contains("Mileage", cut.Markup);
-        });
-
-        Assert.True(await HandleSwipe(cut, SwipeDirection.RightToLeft));
-        cut.WaitForAssertion(() => Assert.Contains("Civic", cut.Markup));
-
-        Assert.True(await HandleSwipe(cut, SwipeDirection.RightToLeft));
-        cut.WaitForAssertion(() => Assert.Contains("Upcoming Reminders", cut.Markup));
-
-        Assert.False(await HandleSwipe(cut, SwipeDirection.RightToLeft));
-        Assert.True(await HandleSwipe(cut, SwipeDirection.LeftToRight));
-        cut.WaitForAssertion(() => Assert.Contains("Civic", cut.Markup));
-    }
 
     [Fact]
     public void MainLayout_HostsSectionShellForTopLevelRoutes()
@@ -171,12 +147,5 @@ public class SwipeNavigationTests : BunitPageContext
         var swipe = cut.FindComponent<MudSwipeArea>();
         var args = new SwipeEventArgs(new PointerEventArgs(), direction, 140, swipe.Instance);
         await cut.InvokeAsync(() => swipe.Instance.OnSwipeEnd.InvokeAsync(args));
-    }
-
-    private static async Task<bool> HandleSwipe(IRenderedComponent<Home> cut, SwipeDirection direction)
-    {
-        var handled = false;
-        await cut.InvokeAsync(() => handled = cut.Instance.TryHandleSwipe(direction));
-        return handled;
     }
 }

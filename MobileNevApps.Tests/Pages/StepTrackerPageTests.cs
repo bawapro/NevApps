@@ -13,7 +13,7 @@ public class StepTrackerPageTests : BunitPageContext
 
         cut.WaitForAssertion(() =>
         {
-            Assert.Contains("Location:", cut.Markup);
+            Assert.Contains("Location", cut.Markup);
             Assert.Contains("WHILE USING", cut.Markup);
         });
     }
